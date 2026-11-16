@@ -770,7 +770,7 @@
         if (action === 'deleteVolunteerAdmin') return runner.deleteVolunteerAdmin(payload.passcode, payload.regId);
         if (action === 'savePatientAdmin') return runner.savePatientAdmin(payload.passcode, payload.obj);
         if (action === 'deletePatientAdmin') return runner.deletePatientAdmin(payload.passcode, payload.patientId);
-        if (action === 'updatePatientVisit') return runner.updatePatientVisit(payload.passcode, payload.patientId, payload.visitStatus, payload.visitNote, payload.images);
+        if (action === 'updatePatientVisit') return runner.updatePatientVisit(payload.passcode, payload.patientId, payload.visitStatus, payload.visitNote, payload.images, payload.visitExtra);
         if (action === 'sendRoundSummaryToLine') return runner.sendRoundSummaryToLine(payload.passcode, payload.roundId);
         if (action === 'saveSupplyAdmin') return runner.saveSupplyAdmin(payload.passcode, payload.obj);
         if (action === 'deleteSupplyAdmin') return runner.deleteSupplyAdmin(payload.passcode, payload.supplyId);
@@ -2390,13 +2390,13 @@
       });
     }
 
-    function compressImageFile(file) {
+    function compressImageFile(file, customMaxW, customQ) {
       return new Promise(function(resolve) {
         var reader = new FileReader();
         reader.onload = function(ev) {
           var img = new Image();
           img.onload = function() {
-            var maxW = 1200;
+            var maxW = customMaxW || 900;
             var w = img.width;
             var h = img.height;
             if (w > maxW) {
@@ -2407,7 +2407,7 @@
             canvas.width = w;
             canvas.height = h;
             canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-            resolve(canvas.toDataURL('image/jpeg', 0.75));
+            resolve(canvas.toDataURL('image/jpeg', customQ || 0.65));
           };
           img.src = ev.target.result;
         };
@@ -2501,6 +2501,7 @@
           patientName: p.Patient_Name,
           visitStatus: val.status,
           visitNote: val.note,
+          visitExtra: val.visitExtra || {},
           images: val.images || [],
           savedAt: new Date().toLocaleString('th-TH')
         };
@@ -2508,6 +2509,13 @@
         setAdminVisitQueue(q);
         p.Visit_Status = val.status;
         p.Visit_Note = val.note;
+        if (val.visitExtra) {
+          if (val.visitExtra.cid) p.CID = val.visitExtra.cid;
+          p.Birth_Date = val.visitExtra.birthDate || p.Birth_Date || '';
+          p.BP = val.visitExtra.bp || p.BP || '';
+          p.Weight_kg = val.visitExtra.weight || p.Weight_kg || '';
+          p.Height_cm = val.visitExtra.height || p.Height_cm || '';
+        }
         try { localStorage.setItem(ADM_CACHE_DATA_KEY, JSON.stringify(ADMIN_DATA)); } catch (e) {}
         renderAdminTables();
         populateQuickVisitSelect();
@@ -2550,7 +2558,7 @@
           return;
         }
         var item = cur[0];
-        callBackend('updatePatientVisit', { passcode: ADMIN_PASSCODE, patientId: item.patientId, visitStatus: item.visitStatus, visitNote: item.visitNote, images: item.images || [] }, function(res) {
+        callBackend('updatePatientVisit', { passcode: ADMIN_PASSCODE, patientId: item.patientId, visitStatus: item.visitStatus, visitNote: item.visitNote, images: item.images || [], visitExtra: item.visitExtra || {} }, function(res) {
           var rem = getAdminVisitQueue();
           rem.shift();
           setAdminVisitQueue(rem);
@@ -2567,32 +2575,67 @@
       }).join('');
 
       Swal.fire({
-        title: 'อัปเดตผลเยี่ยมบ้าน: ' + p.Patient_Name,
+        title: 'บันทึกผลเยี่ยมบ้าน: ' + p.Patient_Name,
+        width: '600px',
         html:
-          '<div class="space-y-2 text-left text-sm">' +
-          '<div class="text-xs bg-green-50 border border-green-200 rounded-lg p-2 text-slate-700"><b>ที่อยู่:</b> ' + escapeHtml(p.Address_Village) + ' ต.' + escapeHtml(p.Subdistrict) + '<br><b>ปัญหา/โรค:</b> ' + escapeHtml(p.Patient_Group) + ' ' + escapeHtml(p.Underlying_Disease) + '</div>' +
-          '<label class="block text-xs text-slate-500">สถานะการเยี่ยมบ้าน</label>' +
-          '<select id="sw-v-status" class="swal2-select !m-0 !w-full">' + stOptions + '</select>' +
-          '<label class="block text-xs text-slate-500">บันทึกผลการเยี่ยมบ้าน / การช่วยเหลือ</label>' +
-          '<textarea id="sw-v-note" class="swal2-textarea !m-0 !w-full" placeholder="พิมพ์อาการ ผลการตรวจ และสิ่งของที่มอบให้...">' + escapeHtml(p.Visit_Note || '') + '</textarea>' +
-          '<label class="block text-xs text-slate-500">แนบรูปถ่ายเยี่ยมบ้าน / เอกสารประกอบ (สูงสุด 3 รูป)</label>' +
+          '<div class="space-y-2.5 text-left text-xs sm:text-sm">' +
+          '<div class="text-xs bg-green-50 border border-green-200 rounded-lg p-2.5 text-slate-700"><b>ที่อยู่:</b> ' + escapeHtml(p.Address_Village) + ' ต.' + escapeHtml(p.Subdistrict) + '<br><b>ปัญหา/โรค:</b> ' + escapeHtml(p.Patient_Group) + ' ' + escapeHtml(p.Underlying_Disease) + '</div>' +
+          '<div class="grid grid-cols-1 sm:grid-cols-2 gap-2">' +
+            '<div><label class="block text-xs text-slate-500 mb-0.5">วัน/เดือน/ปีเกิด</label>' +
+            '<input id="sw-v-dob" type="text" class="swal2-input !m-0 !w-full !text-xs !h-9" placeholder="เช่น 17/12/2500" value="' + escapeHtml(p.Birth_Date || '') + '"></div>' +
+            '<div><label class="block text-xs text-slate-500 mb-0.5">เลขบัตรประชาชน 13 หลัก</label>' +
+            '<input id="sw-v-cid" type="text" maxlength="13" class="swal2-input !m-0 !w-full !text-xs !h-9" placeholder="1-xxxx-xxxxx-xx-x" value="' + escapeHtml(p.CID || '') + '"></div>' +
+          '</div>' +
+          '<div class="grid grid-cols-3 gap-2">' +
+            '<div><label class="block text-xs text-slate-500 mb-0.5">ความดัน (mmHg)</label>' +
+            '<input id="sw-v-bp" type="text" class="swal2-input !m-0 !w-full !text-xs !h-9" placeholder="120/80" value="' + escapeHtml(p.BP || '') + '"></div>' +
+            '<div><label class="block text-xs text-slate-500 mb-0.5">น้ำหนัก (กก.)</label>' +
+            '<input id="sw-v-weight" type="text" class="swal2-input !m-0 !w-full !text-xs !h-9" placeholder="เช่น 55" value="' + escapeHtml(p.Weight_kg || '') + '"></div>' +
+            '<div><label class="block text-xs text-slate-500 mb-0.5">ส่วนสูง (ซม.)</label>' +
+            '<input id="sw-v-height" type="text" class="swal2-input !m-0 !w-full !text-xs !h-9" placeholder="เช่น 160" value="' + escapeHtml(p.Height_cm || '') + '"></div>' +
+          '</div>' +
+          '<div><label class="block text-xs text-slate-500 mb-0.5">สถานะการเยี่ยมบ้าน</label>' +
+          '<select id="sw-v-status" class="swal2-select !m-0 !w-full !text-xs">' + stOptions + '</select></div>' +
+          '<div><label class="block text-xs text-slate-500 mb-0.5">ข้อมูลเยี่ยม / อาการ / การช่วยเหลือ</label>' +
+          '<textarea id="sw-v-note" rows="3" class="swal2-textarea !m-0 !w-full !text-xs !h-auto" placeholder="พิมพ์อาการ ผลการตรวจ และสิ่งของที่มอบให้...">' + escapeHtml(p.Visit_Note || '') + '</textarea></div>' +
+          '<div><label class="block text-xs text-slate-500 mb-0.5">แนบภาพประกอบการเยี่ยม (สูงสุด 10 ภาพต่อคน)</label>' +
           '<input id="sw-v-photos" type="file" accept="image/*" capture="environment" multiple class="w-full text-xs border border-slate-200 rounded-lg p-2 bg-slate-50">' +
+          '<div id="sw-v-photo-count" class="text-[11px] text-[#007a3d] mt-1"></div></div>' +
           '</div>',
         showCancelButton: true,
         confirmButtonText: navigator.onLine ? 'บันทึกและอัปโหลดรูป' : '💾 บันทึกออฟไลน์ไว้ในเครื่อง',
         cancelButtonText: 'ยกเลิก',
         confirmButtonColor: '#007a3d',
+        didOpen: function() {
+          var inp = document.getElementById('sw-v-photos');
+          var cnt = document.getElementById('sw-v-photo-count');
+          if (inp && cnt) {
+            inp.addEventListener('change', function() {
+              var n = inp.files ? inp.files.length : 0;
+              cnt.textContent = n > 10
+                ? 'เลือก ' + n + ' ภาพ (ระบบจะบันทึกเฉพาะ 10 ภาพแรก)'
+                : (n > 0 ? 'เลือกแล้ว ' + n + ' / 10 ภาพ' : '');
+            });
+          }
+        },
         preConfirm: function() {
           var files = document.getElementById('sw-v-photos').files;
           var selected = [];
-          for (var i = 0; i < Math.min(files.length, 3); i++) {
-            selected.push(compressImageFile(files[i]));
+          for (var i = 0; i < Math.min(files.length, 10); i++) {
+            selected.push(compressImageFile(files[i], 900, 0.65));
           }
           return Promise.all(selected).then(function(b64List) {
             return {
               status: document.getElementById('sw-v-status').value,
               note: document.getElementById('sw-v-note').value,
-              images: b64List
+              images: b64List,
+              visitExtra: {
+                birthDate: document.getElementById('sw-v-dob').value.trim(),
+                cid: document.getElementById('sw-v-cid').value.trim(),
+                bp: document.getElementById('sw-v-bp').value.trim(),
+                weight: document.getElementById('sw-v-weight').value.trim(),
+                height: document.getElementById('sw-v-height').value.trim()
+              }
             };
           });
         }
@@ -2603,7 +2646,7 @@
             return;
           }
           Swal.fire({ title: 'กำลังบันทึกและอัปโหลดรูป...', allowOutsideClick: false, didOpen: function() { Swal.showLoading(); } });
-          callBackend('updatePatientVisit', { passcode: ADMIN_PASSCODE, patientId: p.Patient_ID, visitStatus: result.value.status, visitNote: result.value.note, images: result.value.images }, function(res) {
+          callBackend('updatePatientVisit', { passcode: ADMIN_PASSCODE, patientId: p.Patient_ID, visitStatus: result.value.status, visitNote: result.value.note, images: result.value.images, visitExtra: result.value.visitExtra }, function(res) {
             Swal.fire(res.success ? 'สำเร็จ' : 'ผิดพลาด', res.message, res.success ? 'success' : 'error');
             if (res.success) refreshAdminData();
           }, function() { Swal.close(); queueAdminVisitOffline(p, result.value); });

@@ -120,6 +120,24 @@
     var STATUS_FILTER = 'ALL';
     var DEFERRED_INSTALL_PROMPT = null;
 
+    function toDriveThumb(url) {
+      var s = String(url || '').trim();
+      if (s.indexOf('data:image') === 0) return s;
+      var m = s.match(/\/d\/([a-zA-Z0-9_-]+)/) || s.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+      return m ? ('https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w400') : s;
+    }
+
+    function previewPhotoModal(src, origUrl) {
+      Swal.fire({
+        imageUrl: src,
+        imageAlt: 'ภาพประกอบผู้ป่วย',
+        showConfirmButton: true,
+        confirmButtonText: 'ปิด',
+        confirmButtonColor: '#007a3d',
+        footer: origUrl && origUrl.indexOf('http') === 0 ? ('<a href="' + escapeHtml(origUrl) + '" target="_blank" style="color:#007a3d;font-size:12px;">เปิดภาพขนาดเต็มใน Google Drive</a>') : ''
+      });
+    }
+
     function escapeHtml(str) {
       return String(str || '')
         .replace(/&/g, '&amp;')
@@ -304,6 +322,24 @@
         if (p.Height_cm) vitals.push('สส.: ' + p.Height_cm + ' ซม.');
         var vitalsHtml = vitals.length ? '<div class="text-[11px] text-[#006837] bg-green-50 border border-green-100 rounded-lg px-2.5 py-1.5 mt-2 font-medium">🩺 ' + escapeHtml(vitals.join(' • ')) + '</div>' : '';
         var noteHtml = p.Visit_Note ? '<div class="text-xs text-slate-600 bg-slate-50 rounded-lg px-2.5 py-1.5 mt-1.5">📝 ' + escapeHtml(p.Visit_Note) + '</div>' : '';
+        var photoList = [];
+        if (p.Photo_URLs) {
+          photoList = String(p.Photo_URLs).split(',').map(function(u) { return u.trim(); }).filter(Boolean);
+        }
+        if (p._localImages && p._localImages.length) {
+          photoList = photoList.concat(p._localImages);
+        }
+        var photosHtml = '';
+        if (photoList.length) {
+          photosHtml = '<div class="mt-2">' +
+            '<div class="text-[11px] font-medium text-slate-500 mb-1">📷 ภาพประกอบจากพื้นที่/เยี่ยมบ้าน (' + photoList.length + ' ภาพ — แตะเพื่อดูใหญ่)</div>' +
+            '<div class="flex gap-1.5 overflow-x-auto pb-1">' +
+            photoList.map(function(u) {
+              var th = toDriveThumb(u);
+              return '<img src="' + escapeHtml(th) + '" onclick="previewPhotoModal(\'' + escapeHtml(th) + '\', \'' + escapeHtml(u) + '\')" class="w-16 h-16 object-cover rounded-lg border border-green-200 shrink-0 cursor-pointer">';
+            }).join('') +
+            '</div></div>';
+        }
 
         return '<div class="bg-white rounded-2xl shadow-sm border border-green-100 p-4">' +
           '<div class="flex items-start justify-between gap-2">' +
@@ -320,6 +356,7 @@
           '</div>' +
           vitalsHtml +
           noteHtml +
+          photosHtml +
           '<div class="mt-3 pt-2.5 border-t border-slate-100 flex flex-wrap gap-2">' +
             navBtn +
             '<button type="button" onclick="openEditPatientById(\'' + escapeHtml(p.Patient_ID) + '\')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2.5 px-3 rounded-xl text-xs transition cursor-pointer">✏️ แก้ไขข้อมูล</button>' +
@@ -520,6 +557,7 @@
           existingP.Assistance_Needs = obj.assistanceNeeds;
           existingP.Reporter_Name = obj.reporterName;
           existingP.Reporter_Agency = obj.reporterAgency;
+          if (obj.images && obj.images.length) existingP._localImages = (existingP._localImages || []).concat(obj.images);
         } else {
           ADMIN_DATA.patients = ADMIN_DATA.patients || [];
           ADMIN_DATA.patients.unshift({
@@ -541,7 +579,8 @@
             Reporter_Name: obj.reporterName,
             Reporter_Agency: obj.reporterAgency,
             Visit_Status: 'รอเยี่ยมบ้าน',
-            Visit_Note: ''
+            Visit_Note: '',
+            _localImages: obj.images || []
           });
         }
         try { localStorage.setItem(CACHE_DATA_KEY, JSON.stringify(ADMIN_DATA)); } catch (e) {}
@@ -607,6 +646,8 @@
             '<div><label class="block text-slate-500">ชื่อผู้แจ้ง</label><input id="sw-ep-rep" class="swal2-input !m-0 !w-full !text-xs !h-9" placeholder="ชื่อ อสม./จนท." value="' + escapeHtml(p ? (p.Reporter_Name || '') : '') + '"></div>' +
             '<div><label class="block text-slate-500">หน่วยบริการ/รพ.สต.</label><input id="sw-ep-ag" class="swal2-input !m-0 !w-full !text-xs !h-9" placeholder="รพ.สต./สสช." value="' + escapeHtml(p ? (p.Reporter_Agency || '') : '') + '"></div>' +
           '</div>' +
+          '<div><label class="block text-slate-500 mb-0.5">แนบภาพสภาพบ้าน/ผู้ป่วยก่อนลงเยี่ยม (ไม่เกิน 10 ภาพ)</label>' +
+          '<input id="sw-ep-photos" type="file" accept="image/*" capture="environment" multiple class="w-full text-xs border border-slate-200 rounded-lg p-2 bg-slate-50"></div>' +
           '</div>',
         showCancelButton: true,
         confirmButtonText: navigator.onLine ? (p ? 'บันทึกการแก้ไข' : 'ลงทะเบียนคนไข้ใหม่') : '💾 บันทึกออฟไลน์',
@@ -633,29 +674,37 @@
             Swal.showValidationMessage('กรุณากรอกชื่อ-นามสกุลผู้ป่วย');
             return false;
           }
-          var gps = document.getElementById('sw-ep-gps').value.trim();
-          var mapLink = gps ? ('https://maps.google.com/?q=' + gps.replace(/\s+/g, '')) : (p ? (p.Map_Link || '') : '');
-          return {
-            patientId: p ? p.Patient_ID : '',
-            roundId: document.getElementById('sw-ep-round').value,
-            patientName: name,
-            age: document.getElementById('sw-ep-age').value,
-            cid: document.getElementById('sw-ep-cid').value.trim(),
-            phone: document.getElementById('sw-ep-phone').value.trim(),
-            subdistrict: document.getElementById('sw-ep-sub').value,
-            addressVillage: document.getElementById('sw-ep-addr').value.trim(),
-            gpsCoords: gps,
-            mapLink: mapLink,
-            patientGroup: document.getElementById('sw-ep-grp').value,
-            underlyingDisease: document.getElementById('sw-ep-dis').value.trim(),
-            hospitalHistory: document.getElementById('sw-ep-hosp').value.trim(),
-            livingCaregiver: document.getElementById('sw-ep-care').value.trim(),
-            assistanceNeeds: document.getElementById('sw-ep-need').value.trim(),
-            reporterName: document.getElementById('sw-ep-rep').value.trim(),
-            reporterAgency: document.getElementById('sw-ep-ag').value.trim(),
-            visitStatus: p ? (p.Visit_Status || 'รอเยี่ยมบ้าน') : 'รอเยี่ยมบ้าน',
-            visitNote: p ? (p.Visit_Note || '') : ''
-          };
+          var files = document.getElementById('sw-ep-photos').files;
+          var selected = [];
+          for (var i = 0; i < Math.min(files.length, 10); i++) {
+            selected.push(compressImageFile(files[i], 900, 0.65));
+          }
+          return Promise.all(selected).then(function(b64List) {
+            var gps = document.getElementById('sw-ep-gps').value.trim();
+            var mapLink = gps ? ('https://maps.google.com/?q=' + gps.replace(/\s+/g, '')) : (p ? (p.Map_Link || '') : '');
+            return {
+              patientId: p ? p.Patient_ID : '',
+              roundId: document.getElementById('sw-ep-round').value,
+              patientName: name,
+              age: document.getElementById('sw-ep-age').value,
+              cid: document.getElementById('sw-ep-cid').value.trim(),
+              phone: document.getElementById('sw-ep-phone').value.trim(),
+              subdistrict: document.getElementById('sw-ep-sub').value,
+              addressVillage: document.getElementById('sw-ep-addr').value.trim(),
+              gpsCoords: gps,
+              mapLink: mapLink,
+              patientGroup: document.getElementById('sw-ep-grp').value,
+              underlyingDisease: document.getElementById('sw-ep-dis').value.trim(),
+              hospitalHistory: document.getElementById('sw-ep-hosp').value.trim(),
+              livingCaregiver: document.getElementById('sw-ep-care').value.trim(),
+              assistanceNeeds: document.getElementById('sw-ep-need').value.trim(),
+              reporterName: document.getElementById('sw-ep-rep').value.trim(),
+              reporterAgency: document.getElementById('sw-ep-ag').value.trim(),
+              visitStatus: p ? (p.Visit_Status || 'รอเยี่ยมบ้าน') : 'รอเยี่ยมบ้าน',
+              visitNote: p ? (p.Visit_Note || '') : '',
+              images: b64List
+            };
+          });
         }
       }).then(function(result) {
         if (result.isConfirmed && result.value) {

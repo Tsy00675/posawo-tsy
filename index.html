@@ -837,7 +837,7 @@
           ? '<div class="text-[11px] text-indigo-900 bg-indigo-50 border border-indigo-200 rounded-lg px-2.5 py-1.5 mt-1.5 font-medium">📋 Barthel ADL: <b>' + escapeHtml(p.ADL_Score) + '/20</b> (' + escapeHtml(p.ADL_Group || '') + ')</div>'
           : '';
         var sigHtml = p.Signature_URL
-          ? '<div class="mt-1.5"><a href="' + escapeHtml(p.Signature_URL) + '" target="_blank" class="inline-flex items-center gap-1 text-[11px] text-[#006837] bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg font-medium">✍️ ดูลายเซ็นรับมอบสิ่งของ</a></div>'
+          ? '<div class="mt-1.5"><a href="' + escapeHtml(p.Signature_URL) + '" target="_blank" class="inline-flex items-center gap-1 text-[11px] text-[#006837] bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg font-medium">✍️ ดูลายเซ็น / ลายนิ้วมือรับมอบ</a></div>'
           : '';
         var noteHtml = p.Visit_Note ? '<div class="text-xs text-slate-600 bg-slate-50 rounded-lg px-2.5 py-1.5 mt-1.5">📝 ' + escapeHtml(p.Visit_Note) + '</div>' : '';
         var driveUrls = p.Photo_URLs ? String(p.Photo_URLs).split(',').map(function(u) { return u.trim(); }).filter(Boolean) : [];
@@ -1478,6 +1478,7 @@
       }).join('');
 
       var hasSigned = false;
+      var sigPhotoDataUrl = '';
 
       Swal.fire({
         title: 'บันทึกผลเยี่ยม: ' + p.Patient_Name,
@@ -1503,9 +1504,14 @@
           '<div><label class="block text-slate-500 mb-0.5">แนบภาพประกอบ (สูงสุด 10 ภาพ)</label>' +
           '<input id="sw-v-photos" type="file" accept="image/*" capture="environment" multiple class="w-full text-xs border border-slate-200 rounded-lg p-2 bg-slate-50">' +
           '<div id="sw-v-photo-count" class="text-[11px] text-[#007a3d] mt-1"></div></div>' +
-          '<div class="rounded-xl border border-slate-200 bg-slate-50 p-2.5">' +
-            '<div class="flex items-center justify-between mb-1"><span class="font-medium text-slate-700">✍️ ลายเซ็นผู้รับมอบสิ่งของ / ญาติ / อสม.</span><button type="button" id="sw-v-sig-clear" class="text-[11px] text-rose-600 hover:underline cursor-pointer">ล้างลายเซ็น</button></div>' +
+          '<div class="rounded-xl border border-slate-200 bg-slate-50 p-2.5 space-y-1.5">' +
+            '<div class="flex flex-wrap items-center justify-between gap-1"><span class="font-medium text-slate-700">✍️ ลายเซ็น หรือ 📷 ถ่ายรูปปั๊มลายนิ้วมือ</span><button type="button" id="sw-v-sig-clear" class="text-[11px] text-rose-600 hover:underline cursor-pointer">ล้างออก</button></div>' +
             '<canvas id="sw-v-sig-canvas" width="320" height="130" class="w-full h-32 bg-white border border-slate-300 rounded-lg touch-none"></canvas>' +
+            '<div class="flex items-center gap-2">' +
+              '<label for="sw-v-sig-photo" class="flex-1 text-center bg-white hover:bg-green-50 text-[#006837] border border-green-300 rounded-lg py-1.5 px-2 text-[11px] font-medium cursor-pointer">📷 ถ่ายรูปใบปั๊มลายนิ้วมือ (กรณีเซ็นไม่ได้)</label>' +
+              '<input id="sw-v-sig-photo" type="file" accept="image/*" capture="environment" class="hidden">' +
+            '</div>' +
+            '<img id="sw-v-sig-img-prev" class="hidden w-full max-h-36 object-contain rounded-lg border border-green-200 bg-white">' +
           '</div>' +
           '</div>',
         showCancelButton: true,
@@ -1586,10 +1592,29 @@
             canvas.addEventListener('touchstart', startDraw, { passive: false });
             canvas.addEventListener('touchmove', moveDraw, { passive: false });
             canvas.addEventListener('touchend', endDraw);
+            var sigPhotoInp = document.getElementById('sw-v-sig-photo');
+            var sigImgPrev = document.getElementById('sw-v-sig-img-prev');
+            if (sigPhotoInp && sigImgPrev) {
+              sigPhotoInp.addEventListener('change', function() {
+                if (!sigPhotoInp.files || !sigPhotoInp.files[0]) return;
+                compressImageFile(sigPhotoInp.files[0], 900, 0.7).then(function(b64) {
+                  sigPhotoDataUrl = b64;
+                  hasSigned = false;
+                  ctx.clearRect(0, 0, canvas.width, canvas.height);
+                  canvas.classList.add('hidden');
+                  sigImgPrev.src = b64;
+                  sigImgPrev.classList.remove('hidden');
+                });
+              });
+            }
             if (clrBtn) {
               clrBtn.addEventListener('click', function() {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 hasSigned = false;
+                sigPhotoDataUrl = '';
+                if (sigPhotoInp) sigPhotoInp.value = '';
+                if (sigImgPrev) { sigImgPrev.src = ''; sigImgPrev.classList.add('hidden'); }
+                canvas.classList.remove('hidden');
               });
             }
           }
@@ -1608,7 +1633,7 @@
           var adlGroup = anyAdl ? calcAdlSummary(adlTotal).group : '';
 
           var sigCanvas = document.getElementById('sw-v-sig-canvas');
-          var sigDataUrl = (hasSigned && sigCanvas) ? sigCanvas.toDataURL('image/png') : '';
+          var sigDataUrl = sigPhotoDataUrl ? sigPhotoDataUrl : ((hasSigned && sigCanvas) ? sigCanvas.toDataURL('image/png') : '');
 
           var files = document.getElementById('sw-v-photos').files;
           var selected = [];

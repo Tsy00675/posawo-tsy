@@ -138,6 +138,130 @@
       });
     }
 
+    var VULN_TYPES = [
+      'ผู้สูงอายุเปราะบาง',
+      'ผู้พิการ',
+      'ผู้ป่วยโรคเรื้อรังที่มีภาวะพึ่งพิง',
+      'ผู้ป่วยสุขภาพจิตและจิตเวช',
+      'ผู้ป่วยระยะท้ายและประคับประคอง (Palliative Care)',
+      'เด็กและเยาวชนกลุ่มเปราะบาง',
+      'หญิงตั้งครรภ์และมารดากลุ่มเสี่ยง',
+      'ครอบครัวยากจนและผู้ด้อยโอกาส',
+      'ผู้ประสบปัญหาทางสังคม',
+      'ประชากรชายขอบและผู้เข้าไม่ถึงบริการ'
+    ];
+
+    var VULN_LEVELS = [
+      {
+        val: 'ระดับ 1 : เปราะบางมาก (เร่งด่วน)',
+        title: 'ระดับ 1 : เปราะบางมาก (เร่งด่วน)',
+        desc: 'ผู้ป่วยติดเตียง ผู้ป่วยระยะท้าย ผู้พิการที่ช่วยเหลือตนเองไม่ได้ ผู้ป่วยจิตเวชที่มีความเสี่ยง และผู้ที่ไม่มีผู้ดูแล',
+        cardCls: 'border-rose-400 bg-rose-50 text-rose-900',
+        badgeCls: 'bg-rose-100 text-rose-800 border-rose-300',
+        borderLeft: 'border-l-4 border-l-rose-500',
+        icon: '🔴'
+      },
+      {
+        val: 'ระดับ 2 : เปราะบาง (ติดตามต่อเนื่อง)',
+        title: 'ระดับ 2 : เปราะบาง (ติดตามต่อเนื่อง)',
+        desc: 'ผู้สูงอายุอยู่ลำพัง ผู้ป่วยโรคเรื้อรังที่มีข้อจำกัดในการดำเนินชีวิต ครอบครัวยากจน และเด็กกลุ่มเสี่ยง',
+        cardCls: 'border-amber-400 bg-amber-50 text-amber-900',
+        badgeCls: 'bg-amber-100 text-amber-800 border-amber-300',
+        borderLeft: 'border-l-4 border-l-amber-500',
+        icon: '🟠'
+      },
+      {
+        val: 'ระดับ 3 : เฝ้าระวัง (ติดตามตามความเหมาะสม)',
+        title: 'ระดับ 3 : เฝ้าระวัง (ติดตามตามความเหมาะสม)',
+        desc: 'ประชาชนที่มีความเสี่ยงทางสังคม เข้าไม่ถึงบริการสุขภาพ หรือมีปัญหาด้านเศรษฐกิจและสภาพแวดล้อม',
+        cardCls: 'border-yellow-400 bg-yellow-50 text-yellow-900',
+        badgeCls: 'bg-yellow-100 text-yellow-800 border-yellow-300',
+        borderLeft: 'border-l-4 border-l-yellow-500',
+        icon: '🟡'
+      }
+    ];
+
+    function getVulnLevelMeta(val) {
+      var s = String(val || '');
+      for (var i = 0; i < VULN_LEVELS.length; i++) {
+        if (s.indexOf('ระดับ ' + (i + 1)) !== -1 || s === VULN_LEVELS[i].val) return VULN_LEVELS[i];
+      }
+      return null;
+    }
+
+    function buildVulnCheckboxesHtml(prefix, existingGroupStr) {
+      var raw = String(existingGroupStr || '');
+      var parts = raw.split(',').map(function(x) { return x.trim(); }).filter(Boolean);
+      var otherText = '';
+      parts.forEach(function(pt) {
+        if (pt.indexOf('อื่นๆ:') === 0) {
+          otherText = pt.replace(/^อื่นๆ:\s*/, '').trim();
+        } else if (VULN_TYPES.indexOf(pt) === -1 && pt !== 'อื่นๆ') {
+          otherText = otherText ? (otherText + ', ' + pt) : pt;
+        }
+      });
+      var itemsHtml = VULN_TYPES.map(function(t, idx) {
+        var chk = parts.indexOf(t) !== -1 ? ' checked' : '';
+        return '<label class="flex items-start gap-2 p-1.5 rounded-lg hover:bg-green-50/70 cursor-pointer text-xs text-slate-700">' +
+          '<input type="checkbox" class="' + prefix + '-grp-chk mt-0.5 accent-[#007a3d]" value="' + escapeHtml(t) + '"' + chk + '>' +
+          '<span>' + escapeHtml(t) + '</span>' +
+          '</label>';
+      }).join('');
+      var otherChk = otherText ? ' checked' : '';
+      return '<div class="border border-slate-200 rounded-xl p-2 bg-slate-50/50 space-y-1 max-h-48 overflow-y-auto">' +
+        itemsHtml +
+        '<label class="flex items-start gap-2 p-1.5 rounded-lg hover:bg-green-50/70 cursor-pointer text-xs text-slate-700">' +
+          '<input type="checkbox" id="' + prefix + '-grp-other-chk" class="mt-0.5 accent-[#007a3d]"' + otherChk + '>' +
+          '<span>อื่นๆ (โปรดระบุ)</span>' +
+        '</label>' +
+        '<input id="' + prefix + '-grp-other-txt" type="text" class="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs bg-white ' + (otherText ? '' : 'hidden') + '" placeholder="ระบุประเภทความเปราะบางอื่นๆ..." value="' + escapeHtml(otherText) + '">' +
+      '</div>';
+    }
+
+    function buildVulnLevelCardsHtml(prefix, existingLevel) {
+      var cur = String(existingLevel || VULN_LEVELS[0].val);
+      return '<div class="space-y-1.5">' + VULN_LEVELS.map(function(lv, idx) {
+        var checked = (cur.indexOf('ระดับ ' + (idx + 1)) !== -1 || (idx === 0 && !getVulnLevelMeta(cur))) ? ' checked' : '';
+        return '<label class="block rounded-xl border-2 p-2.5 cursor-pointer transition ' + lv.cardCls + '">' +
+          '<div class="flex items-start gap-2">' +
+            '<input type="radio" name="' + prefix + '-vlevel" value="' + escapeHtml(lv.val) + '" class="mt-1 accent-[#007a3d]"' + checked + '>' +
+            '<div>' +
+              '<div class="font-semibold text-xs">' + lv.icon + ' ' + escapeHtml(lv.title) + '</div>' +
+              '<div class="text-[11px] opacity-85 mt-0.5 leading-snug">' + escapeHtml(lv.desc) + '</div>' +
+            '</div>' +
+          '</div>' +
+        '</label>';
+      }).join('') + '</div>';
+    }
+
+    function bindVulnOtherToggle(prefix) {
+      var chk = document.getElementById(prefix + '-grp-other-chk');
+      var txt = document.getElementById(prefix + '-grp-other-txt');
+      if (chk && txt) {
+        chk.addEventListener('change', function() {
+          if (chk.checked) { txt.classList.remove('hidden'); txt.focus(); }
+          else { txt.classList.add('hidden'); }
+        });
+      }
+    }
+
+    function readVulnSelections(prefix) {
+      var chks = document.querySelectorAll('.' + prefix + '-grp-chk:checked');
+      var selected = [];
+      for (var i = 0; i < chks.length; i++) selected.push(chks[i].value);
+      var oChk = document.getElementById(prefix + '-grp-other-chk');
+      var oTxt = document.getElementById(prefix + '-grp-other-txt');
+      if (oChk && oChk.checked) {
+        var ov = oTxt ? oTxt.value.trim() : '';
+        selected.push(ov ? ('อื่นๆ: ' + ov) : 'อื่นๆ');
+      }
+      var rad = document.querySelector('input[name="' + prefix + '-vlevel"]:checked');
+      return {
+        patientGroup: selected.join(', '),
+        vulnerabilityLevel: rad ? rad.value : VULN_LEVELS[0].val
+      };
+    }
+
     function escapeHtml(str) {
       return String(str || '')
         .replace(/&/g, '&amp;')
@@ -341,7 +465,11 @@
             '</div></div>';
         }
 
-        return '<div class="bg-white rounded-2xl shadow-sm border border-green-100 p-4">' +
+        var lvMeta = getVulnLevelMeta(p.Vulnerability_Level);
+        var cardBorder = lvMeta ? ('border-green-100 ' + lvMeta.borderLeft) : 'border-green-100';
+        var lvBadgeHtml = lvMeta ? ('<div class="mb-2"><span class="inline-block text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ' + lvMeta.badgeCls + '">' + lvMeta.icon + ' ' + escapeHtml(lvMeta.title) + '</span></div>') : '';
+        return '<div class="bg-white rounded-2xl shadow-sm border ' + cardBorder + ' p-4">' +
+          lvBadgeHtml +
           '<div class="flex items-start justify-between gap-2">' +
             '<div>' +
               '<div class="font-semibold text-base text-slate-800">' + escapeHtml(p.Patient_Name) + ' <span class="text-xs font-normal text-slate-500">(' + escapeHtml(p.Age) + ' ปี)</span></div>' +
@@ -551,6 +679,7 @@
           existingP.GPS_Coords = obj.gpsCoords;
           existingP.Map_Link = obj.mapLink;
           existingP.Patient_Group = obj.patientGroup;
+          existingP.Vulnerability_Level = obj.vulnerabilityLevel;
           existingP.Underlying_Disease = obj.underlyingDisease;
           existingP.Hospital_History = obj.hospitalHistory;
           existingP.Living_Caregiver = obj.livingCaregiver;
@@ -572,6 +701,7 @@
             GPS_Coords: obj.gpsCoords,
             Map_Link: obj.mapLink,
             Patient_Group: obj.patientGroup,
+            Vulnerability_Level: obj.vulnerabilityLevel,
             Underlying_Disease: obj.underlyingDisease,
             Hospital_History: obj.hospitalHistory,
             Living_Caregiver: obj.livingCaregiver,
@@ -607,10 +737,8 @@
       var subOpts = subs.map(function(s) {
         return '<option value="' + s + '"' + (p && p.Subdistrict === s ? ' selected' : '') + '>ต.' + s + '</option>';
       }).join('');
-      var grps = ['ผู้ป่วยติดเตียง / ติดบ้าน', 'ผู้พิการทางการเคลื่อนไหวหรือทางร่างกาย', 'ผู้พิการทางการเห็น', 'ผู้สูงอายุยากไร้ / ผู้ยากไร้', 'ผู้ป่วยในพระบรมราชานุเคราะห์', 'ผู้ป่วยโรคเรื้อรัง (NCD)', 'อื่นๆ'];
-      var grpOpts = grps.map(function(g) {
-        return '<option value="' + g + '"' + (p && p.Patient_Group === g ? ' selected' : '') + '>' + g + '</option>';
-      }).join('');
+      var grpCheckHtml = buildVulnCheckboxesHtml('sw-ep', p ? p.Patient_Group : '');
+      var lvlCardsHtml = buildVulnLevelCardsHtml('sw-ep', p ? p.Vulnerability_Level : '');
       var hospOpts = [
         'เคยมารับบริการที่ รพ.ท่าสองยาง (*รับยาที่ รพ.ท่าสองยาง)',
         'เคยมารับบริการที่ รพ.ท่าสองยาง (ขาดนัด/ไม่ได้ไปรับยา)',
@@ -637,7 +765,8 @@
           '</div>' +
           '<div class="flex items-center justify-between"><label class="block text-slate-500">พิกัดบ้านผู้ป่วย (GPS)</label><button type="button" id="sw-ep-gps-btn" class="text-[11px] bg-green-100 text-[#006837] px-2.5 py-1 rounded-lg font-medium cursor-pointer">📍 ดึงพิกัดปัจจุบัน</button></div>' +
           '<input id="sw-ep-gps" class="swal2-input !m-0 !w-full !text-xs !h-9" placeholder="ละติจูด, ลองจิจูด (สร้างลิงก์แผนที่อัตโนมัติ)" value="' + escapeHtml(p ? (p.GPS_Coords || '') : '') + '">' +
-          '<label class="block text-slate-500">กลุ่มเป้าหมาย / สภาพปัญหา *</label><select id="sw-ep-grp" class="swal2-select !m-0 !w-full !text-xs">' + grpOpts + '</select>' +
+          '<label class="block text-slate-500 font-medium">กลุ่มเป้าหมาย / ประเภทความเปราะบาง (เลือกได้มากกว่า 1 ข้อ) *</label>' + grpCheckHtml +
+          '<label class="block text-slate-500 font-medium mt-1">ระดับความเปราะบาง *</label>' + lvlCardsHtml +
           '<label class="block text-slate-500">ป่วยเป็นโรค / การวินิจฉัย *</label><input id="sw-ep-dis" class="swal2-input !m-0 !w-full !text-xs !h-9" placeholder="เช่น เบาหวาน, ความดัน, อัมพฤกษ์" value="' + escapeHtml(p ? p.Underlying_Disease : '') + '">' +
           '<label class="block text-slate-500">ประวัติการมา รพ.ท่าสองยาง</label><input id="sw-ep-hosp" class="swal2-input !m-0 !w-full !text-xs !h-9" value="' + escapeHtml(curHosp) + '">' +
           '<label class="block text-slate-500">สภาพความเป็นอยู่ / ผู้ดูแล *</label><input id="sw-ep-care" class="swal2-input !m-0 !w-full !text-xs !h-9" placeholder="เช่น อาศัยอยู่กับบุตร" value="' + escapeHtml(p ? (p.Living_Caregiver || '') : '') + '">' +
@@ -654,6 +783,7 @@
         cancelButtonText: 'ยกเลิก',
         confirmButtonColor: '#007a3d',
         didOpen: function() {
+          bindVulnOtherToggle('sw-ep');
           var gBtn = document.getElementById('sw-ep-gps-btn');
           if (gBtn) {
             gBtn.addEventListener('click', function() {
@@ -672,6 +802,11 @@
           var name = document.getElementById('sw-ep-name').value.trim();
           if (!name) {
             Swal.showValidationMessage('กรุณากรอกชื่อ-นามสกุลผู้ป่วย');
+            return false;
+          }
+          var vulnSel = readVulnSelections('sw-ep');
+          if (!vulnSel.patientGroup) {
+            Swal.showValidationMessage('กรุณาเลือกกลุ่มเป้าหมาย / ประเภทความเปราะบางอย่างน้อย 1 ข้อ');
             return false;
           }
           var files = document.getElementById('sw-ep-photos').files;
@@ -693,7 +828,8 @@
               addressVillage: document.getElementById('sw-ep-addr').value.trim(),
               gpsCoords: gps,
               mapLink: mapLink,
-              patientGroup: document.getElementById('sw-ep-grp').value,
+              patientGroup: vulnSel.patientGroup,
+              vulnerabilityLevel: vulnSel.vulnerabilityLevel,
               underlyingDisease: document.getElementById('sw-ep-dis').value.trim(),
               hospitalHistory: document.getElementById('sw-ep-hosp').value.trim(),
               livingCaregiver: document.getElementById('sw-ep-care').value.trim(),

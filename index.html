@@ -16,9 +16,15 @@
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <style>
     body { font-family: 'Kanit', sans-serif; background-color: #f4f9f6; color: #1e293b; -webkit-tap-highlight-color: transparent; }
+    html.font-large { font-size: 18px; }
     .moph-header { background: linear-gradient(135deg, #007a3d 0%, #006837 100%); }
     .moph-btn { background-color: #007a3d; color: #ffffff; }
     .moph-btn:hover { background-color: #006837; }
+    .swal2-popup { border-radius: 1.25rem !important; max-width: 680px !important; }
+    .swal2-html-container { max-height: 68vh !important; overflow-y: auto !important; margin: 0.75rem 0.5rem !important; padding: 0 0.5rem !important; }
+    @media (max-width: 640px) {
+      .swal2-popup { width: 96% !important; padding: 1rem 0.75rem !important; }
+    }
   </style>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -27,7 +33,7 @@
 
   <!-- Header -->
   <header class="moph-header text-white shadow-md sticky top-0 z-30">
-    <div class="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
       <div class="flex items-center gap-2.5 min-w-0">
         <div class="w-10 h-10 rounded-xl bg-white/15 border border-white/25 flex items-center justify-center shrink-0">
           <i class="fa-solid fa-house-medical text-lg text-white"></i>
@@ -38,16 +44,17 @@
         </div>
       </div>
       <div class="flex items-center gap-1.5 shrink-0">
+        <button type="button" id="btn-font-toggle" class="text-[11px] bg-white/15 hover:bg-white/25 border border-white/25 px-2.5 py-1 rounded-full cursor-pointer" title="ปรับขนาดตัวอักษร">ก+</button>
         <button type="button" id="btn-pwa-install" class="hidden text-[11px] bg-white text-[#006837] font-semibold px-2.5 py-1 rounded-full shadow-xs cursor-pointer">📲 ติดตั้ง</button>
         <span id="net-badge" class="text-[11px] font-medium px-2.5 py-1 rounded-full bg-white/15 border border-white/25">🟢 ออนไลน์</span>
       </div>
     </div>
   </header>
 
-  <main class="max-w-2xl w-full mx-auto px-3.5 py-4 flex-1 space-y-3.5">
+  <main class="max-w-6xl w-full mx-auto px-3.5 py-4 pb-24 md:pb-8 flex-1 space-y-3.5">
 
     <!-- Login Screen (PDPA Protected) -->
-    <section id="sec-login" class="bg-white rounded-2xl shadow-sm border border-green-100 p-6 text-center mt-4">
+    <section id="sec-login" class="max-w-md mx-auto bg-white rounded-2xl shadow-sm border border-green-100 p-6 text-center mt-4">
       <div class="w-14 h-14 rounded-2xl bg-green-100 text-[#007a3d] flex items-center justify-center mx-auto mb-3">
         <i class="fa-solid fa-user-shield text-2xl"></i>
       </div>
@@ -118,6 +125,9 @@
           <button type="button" id="btn-sort-custom" class="flex-1 bg-slate-50 hover:bg-slate-100 text-slate-800 border border-slate-300 font-medium py-2 px-2.5 rounded-xl text-xs transition cursor-pointer">
             ↕️ จัดลำดับเอง
           </button>
+          <button type="button" id="btn-compact-toggle" class="bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-300 font-medium py-2 px-3 rounded-xl text-xs transition cursor-pointer">
+            📄 ย่อการ์ด
+          </button>
           <button type="button" id="btn-toggle-map" class="bg-emerald-50 hover:bg-emerald-100 text-[#006837] border border-emerald-200 font-medium py-2 px-3 rounded-xl text-xs transition cursor-pointer">
             🗺️ แผนที่
           </button>
@@ -138,11 +148,34 @@
       </div>
 
       <!-- Patient Cards List -->
-      <div id="patient-cards" class="space-y-3 pb-8"></div>
+      <div id="patient-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 items-start pb-4"></div>
 
     </section>
 
   </main>
+
+  <!-- Mobile Bottom Navigation Bar (Thumb-friendly) -->
+  <nav id="mobile-bottom-bar" class="hidden md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur border-t border-green-200 shadow-lg px-2 py-1.5">
+    <div class="grid grid-cols-4 gap-1 text-center">
+      <button type="button" id="bnav-list" class="flex flex-col items-center justify-center py-1 rounded-xl text-[#007a3d] bg-green-50 font-medium text-[11px] cursor-pointer">
+        <span class="text-base leading-none mb-0.5">📋</span>
+        <span>รายชื่อ</span>
+      </button>
+      <button type="button" id="bnav-map" class="flex flex-col items-center justify-center py-1 rounded-xl text-slate-600 hover:bg-slate-50 font-medium text-[11px] cursor-pointer">
+        <span class="text-base leading-none mb-0.5">🗺️</span>
+        <span>แผนที่</span>
+      </button>
+      <button type="button" id="bnav-add" class="flex flex-col items-center justify-center py-1 rounded-xl text-slate-600 hover:bg-slate-50 font-medium text-[11px] cursor-pointer">
+        <span class="text-base leading-none mb-0.5">➕</span>
+        <span>คนไข้ใหม่</span>
+      </button>
+      <button type="button" id="bnav-sync" class="relative flex flex-col items-center justify-center py-1 rounded-xl text-slate-600 hover:bg-slate-50 font-medium text-[11px] cursor-pointer">
+        <span class="text-base leading-none mb-0.5">🔄</span>
+        <span>ซิงค์/รีเฟรช</span>
+        <span id="bnav-sync-badge" class="hidden absolute top-0.5 right-3 bg-rose-600 text-white text-[9px] font-bold px-1.5 rounded-full">0</span>
+      </button>
+    </div>
+  </nav>
 
   <script>
     var DEFAULT_GAS_API_URL = 'https://script.google.com/macros/s/AKfycbxArwxigN7ImXL6BYGxVQ6jx8mKTZIX-b7g933ucqyjlowyYuW3c2YZi89FF4pTOvwB/exec';
@@ -351,6 +384,61 @@
       };
     }
 
+    var COMPACT_MODE = false;
+    var EXPANDED_IDS = {};
+    var LARGE_FONT_KEY = 'pmmv_large_font_v1';
+
+    function applySavedFont() {
+      var isLarge = localStorage.getItem(LARGE_FONT_KEY) === '1';
+      var btn = document.getElementById('btn-font-toggle');
+      if (isLarge) {
+        document.documentElement.classList.add('font-large');
+        if (btn) btn.textContent = 'ก- ปกติ';
+      } else {
+        document.documentElement.classList.remove('font-large');
+        if (btn) btn.textContent = 'ก+ ใหญ่';
+      }
+    }
+
+    function toggleFontScale() {
+      var cur = localStorage.getItem(LARGE_FONT_KEY) === '1';
+      localStorage.setItem(LARGE_FONT_KEY, cur ? '0' : '1');
+      applySavedFont();
+    }
+
+    function toggleCompactMode() {
+      COMPACT_MODE = !COMPACT_MODE;
+      var btn = document.getElementById('btn-compact-toggle');
+      if (btn) {
+        if (COMPACT_MODE) {
+          btn.className = 'bg-slate-800 text-white border border-slate-900 font-medium py-2 px-3 rounded-xl text-xs transition cursor-pointer';
+          btn.textContent = '📄 ขยายการ์ดทั้งหมด';
+        } else {
+          btn.className = 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-300 font-medium py-2 px-3 rounded-xl text-xs transition cursor-pointer';
+          btn.textContent = '📄 ย่อการ์ด';
+        }
+      }
+      renderPatients();
+    }
+
+    function toggleCardExpand(patientId) {
+      EXPANDED_IDS[patientId] = !EXPANDED_IDS[patientId];
+      renderPatients();
+    }
+
+    function updateBottomBarActive() {
+      var bl = document.getElementById('bnav-list');
+      var bm = document.getElementById('bnav-map');
+      if (!bl || !bm) return;
+      if (MAP_MODE) {
+        bm.className = 'flex flex-col items-center justify-center py-1 rounded-xl text-[#007a3d] bg-green-50 font-medium text-[11px] cursor-pointer';
+        bl.className = 'flex flex-col items-center justify-center py-1 rounded-xl text-slate-600 hover:bg-slate-50 font-medium text-[11px] cursor-pointer';
+      } else {
+        bl.className = 'flex flex-col items-center justify-center py-1 rounded-xl text-[#007a3d] bg-green-50 font-medium text-[11px] cursor-pointer';
+        bm.className = 'flex flex-col items-center justify-center py-1 rounded-xl text-slate-600 hover:bg-slate-50 font-medium text-[11px] cursor-pointer';
+      }
+    }
+
     var MAP_MODE = false;
     var MOBILE_MAP = null;
     var MOBILE_MAP_LAYER = null;
@@ -395,6 +483,7 @@
           btn.textContent = '🗺️ แผนที่';
         }
       }
+      updateBottomBarActive();
     }
 
     function renderMobileMap(list) {
@@ -698,6 +787,7 @@
     function showApp() {
       document.getElementById('sec-login').classList.add('hidden');
       document.getElementById('sec-app').classList.remove('hidden');
+      var bnav = document.getElementById('mobile-bottom-bar'); if (bnav) bnav.classList.remove('hidden');
       if (ADMIN_DATA && ADMIN_DATA.settings && ADMIN_DATA.settings.orgName) {
         document.getElementById('hdr-org').textContent = ADMIN_DATA.settings.orgName;
       }
@@ -927,26 +1017,32 @@
              '</div></div>')
           : '';
         var lvBadgeHtml = orderCtrlHtml + ((lvMeta || distHtml) ? ('<div class="mb-2 flex flex-wrap items-center gap-1.5">' + (lvMeta ? ('<span class="inline-block text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ' + lvMeta.badgeCls + '">' + lvMeta.icon + ' ' + escapeHtml(lvMeta.title) + '</span>') : '') + distHtml + '</div>') : '');
-        return '<div class="bg-white rounded-2xl shadow-sm border ' + cardBorder + ' p-4">' +
-          lvBadgeHtml +
-          '<div class="flex items-start justify-between gap-2">' +
-            '<div>' +
-              '<div class="font-semibold text-base text-slate-800">' + escapeHtml(p.Patient_Name) + ' <span class="text-xs font-normal text-slate-500">(' + escapeHtml(p.Age) + ' ปี)</span></div>' +
-              '<div class="text-xs text-slate-500 mt-0.5">🏠 ' + escapeHtml(p.Address_Village) + ' ต.' + escapeHtml(p.Subdistrict) + '</div>' +
+        var isExpanded = !COMPACT_MODE || !!EXPANDED_IDS[p.Patient_ID];
+        var detailHtml = isExpanded
+          ? ('<div class="mt-2.5 text-xs text-slate-700 space-y-1">' +
+              '<div><b>กลุ่ม/โรค:</b> ' + escapeHtml(p.Patient_Group) + (p.Underlying_Disease ? (' — ' + escapeHtml(p.Underlying_Disease)) : '') + '</div>' +
+              '<div><b>ผู้ดูแล:</b> ' + escapeHtml(p.Living_Caregiver || '-') + '</div>' +
+              '<div><b>ความช่วยเหลือ:</b> ' + escapeHtml(p.Assistance_Needs || '-') + '</div>' +
             '</div>' +
-            '<span class="text-[11px] font-medium px-2.5 py-0.5 rounded-full border shrink-0 ' + badge + '">' + escapeHtml(p.Visit_Status || 'รอเยี่ยมบ้าน') + '</span>' +
+            vitalsHtml + adlHtml + sigHtml + noteHtml + teamNotesHtml + photosHtml)
+          : '';
+        var toggleExpandBtn = COMPACT_MODE
+          ? ('<button type="button" onclick="toggleCardExpand(\'' + escapeHtml(p.Patient_ID) + '\')" class="mt-2 w-full text-center text-[11px] font-medium text-[#007a3d] bg-green-50/70 hover:bg-green-100/70 rounded-lg py-1 cursor-pointer">' + (isExpanded ? '▴ ย่อรายละเอียด' : '▾ ดูรายละเอียด / โน้ต / รูปภาพ (' + totalPics + ')') + '</button>')
+          : '';
+
+        return '<div class="bg-white rounded-2xl shadow-sm border ' + cardBorder + ' p-4 flex flex-col justify-between">' +
+          '<div>' +
+            lvBadgeHtml +
+            '<div class="flex items-start justify-between gap-2">' +
+              '<div class="min-w-0">' +
+                '<div class="font-semibold text-base text-slate-800 leading-snug">' + escapeHtml(p.Patient_Name) + ' <span class="text-xs font-normal text-slate-500">(' + escapeHtml(p.Age) + ' ปี)</span></div>' +
+                '<div class="text-xs text-slate-500 mt-0.5">🏠 ' + escapeHtml(p.Address_Village) + ' ต.' + escapeHtml(p.Subdistrict) + '</div>' +
+              '</div>' +
+              '<span class="text-[11px] font-medium px-2.5 py-0.5 rounded-full border shrink-0 ' + badge + '">' + escapeHtml(p.Visit_Status || 'รอเยี่ยมบ้าน') + '</span>' +
+            '</div>' +
+            detailHtml +
+            toggleExpandBtn +
           '</div>' +
-          '<div class="mt-2.5 text-xs text-slate-700 space-y-1">' +
-            '<div><b>กลุ่ม/โรค:</b> ' + escapeHtml(p.Patient_Group) + (p.Underlying_Disease ? (' — ' + escapeHtml(p.Underlying_Disease)) : '') + '</div>' +
-            '<div><b>ผู้ดูแล:</b> ' + escapeHtml(p.Living_Caregiver || '-') + '</div>' +
-            '<div><b>ความช่วยเหลือ:</b> ' + escapeHtml(p.Assistance_Needs || '-') + '</div>' +
-          '</div>' +
-          vitalsHtml +
-          adlHtml +
-          sigHtml +
-          noteHtml +
-          teamNotesHtml +
-          photosHtml +
           '<div class="mt-3 pt-2.5 border-t border-slate-100 flex flex-wrap gap-1.5">' +
             navBtn +
             callBtn +
@@ -998,6 +1094,8 @@
       var cnt = document.getElementById('offline-count');
       var list = document.getElementById('offline-list');
       if (!panel || !cnt || !list) return;
+      var bBadge = document.getElementById('bnav-sync-badge');
+      if (bBadge) { if (q.length) { bBadge.textContent = String(q.length); bBadge.classList.remove('hidden'); } else { bBadge.classList.add('hidden'); } }
       if (!q.length) {
         panel.classList.add('hidden');
         cnt.textContent = '0';
@@ -1776,6 +1874,7 @@
         ADMIN_PASSCODE = '';
         ADMIN_DATA = null;
         document.getElementById('sec-app').classList.add('hidden');
+        var bnav = document.getElementById('mobile-bottom-bar'); if (bnav) bnav.classList.add('hidden');
         document.getElementById('sec-login').classList.remove('hidden');
       });
       document.getElementById('filter-round').addEventListener('change', function() { populateRounds(); renderPatients(); });
@@ -1784,6 +1883,13 @@
       document.getElementById('btn-sort-nearest').addEventListener('click', toggleSortNearest);
       document.getElementById('btn-sort-custom').addEventListener('click', toggleCustomSort);
       document.getElementById('btn-toggle-map').addEventListener('click', toggleMapView);
+      document.getElementById('btn-compact-toggle').addEventListener('click', toggleCompactMode);
+      document.getElementById('btn-font-toggle').addEventListener('click', toggleFontScale);
+      applySavedFont();
+      document.getElementById('bnav-list').addEventListener('click', function() { if (MAP_MODE) toggleMapView(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+      document.getElementById('bnav-map').addEventListener('click', function() { if (!MAP_MODE) toggleMapView(); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+      document.getElementById('bnav-add').addEventListener('click', function() { openEditPatientById(null); });
+      document.getElementById('bnav-sync').addEventListener('click', function() { if (getOfflineQueue().length > 0) syncAllOffline(); else refreshData(); });
       document.getElementById('btn-sync-all').addEventListener('click', syncAllOffline);
 
       var stBtns = document.querySelectorAll('.st-filter-btn');

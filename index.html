@@ -20,6 +20,8 @@
     .moph-btn { background-color: #007a3d; color: #ffffff; }
     .moph-btn:hover { background-color: #006837; }
   </style>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body class="min-h-screen flex flex-col">
 
@@ -116,9 +118,22 @@
           <button type="button" id="btn-sort-custom" class="flex-1 bg-slate-50 hover:bg-slate-100 text-slate-800 border border-slate-300 font-medium py-2 px-2.5 rounded-xl text-xs transition cursor-pointer">
             ↕️ จัดลำดับเอง
           </button>
+          <button type="button" id="btn-toggle-map" class="bg-emerald-50 hover:bg-emerald-100 text-[#006837] border border-emerald-200 font-medium py-2 px-3 rounded-xl text-xs transition cursor-pointer">
+            🗺️ แผนที่
+          </button>
           <a id="btn-multi-route" href="#" target="_blank" class="hidden w-full sm:w-auto text-center bg-[#007a3d] hover:bg-[#006837] text-white font-medium py-2 px-3 rounded-xl text-xs transition">
-            🗺️ นำทางรวมหลายจุด
+            🚗 นำทางรวมหลายจุด
           </a>
+        </div>
+      </div>
+
+      <!-- Mobile Map View -->
+      <div id="map-view-wrap" class="hidden bg-white rounded-2xl shadow-sm border border-green-100 p-3 space-y-2">
+        <div id="mobile-leaflet-map" class="w-full h-[62vh] rounded-xl z-10 border border-slate-200"></div>
+        <div class="flex flex-wrap items-center justify-center gap-3 text-[11px] text-slate-600 pt-1">
+          <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-rose-600 inline-block"></span> ระดับ 1 (เร่งด่วน)</span>
+          <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-amber-500 inline-block"></span> ระดับ 2 (เปราะบาง)</span>
+          <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-yellow-400 inline-block border border-yellow-600"></span> ระดับ 3 (เฝ้าระวัง)</span>
         </div>
       </div>
 
@@ -334,6 +349,97 @@
         patientGroup: selected.join(', '),
         vulnerabilityLevel: rad ? rad.value : VULN_LEVELS[0].val
       };
+    }
+
+    var MAP_MODE = false;
+    var MOBILE_MAP = null;
+    var MOBILE_MAP_LAYER = null;
+
+    var ADL_ITEMS = [
+      { label: '1. รับประทานอาหาร', opts: [['0', '0: ไม่สามารถตักเข้าปากได้'], ['1', '1: ตักเองได้แต่ต้องช่วยบ้าง'], ['2', '2: ตักรับประทานเองได้']] },
+      { label: '2. ล้างหน้า หวีผม แปรงฟัน', opts: [['0', '0: ต้องการความช่วยเหลือ'], ['1', '1: ทำได้เอง']] },
+      { label: '3. ลุกนั่งจากที่นอน/เก้าอี้', opts: [['0', '0: ไม่สามารถนั่งได้'], ['1', '1: ต้องการคนช่วยพยุงมาก'], ['2', '2: ช่วยพยุงเล็กน้อย'], ['3', '3: ทำได้เอง']] },
+      { label: '4. ใช้ห้องน้ำ', opts: [['0', '0: ช่วยเหลือตนเองไม่ได้'], ['1', '1: ทำได้บางส่วน'], ['2', '2: ทำได้เองทั้งหมด']] },
+      { label: '5. เคลื่อนที่ภายในบ้าน', opts: [['0', '0: เคลื่อนที่ไม่ได้'], ['1', '1: ใช้รถเข็นเองได้'], ['2', '2: เดินโดยมีคนช่วย/ไม้เท้า'], ['3', '3: เดินได้เอง']] },
+      { label: '6. สวมใส่เสื้อผ้า', opts: [['0', '0: ต้องมีคนสวมใส่ให้'], ['1', '1: ช่วยตนเองได้ครึ่งหนึ่ง'], ['2', '2: สวมใส่เองได้']] },
+      { label: '7. ขึ้นลงบันได 1 ชั้น', opts: [['0', '0: ไม่สามารถทำได้'], ['1', '1: ต้องมีคนช่วยพยุง'], ['2', '2: ขึ้นลงเองได้']] },
+      { label: '8. อาบน้ำ', opts: [['0', '0: ต้องมีคนช่วย'], ['1', '1: อาบน้ำเองได้']] },
+      { label: '9. กลั้นอุจจาระ (1 สัปดาห์)', opts: [['0', '0: กลั้นไม่ได้'], ['1', '1: กลั้นไม่ได้บางครั้ง'], ['2', '2: กลั้นได้ปกติ']] },
+      { label: '10. กลั้นปัสสาวะ (1 สัปดาห์)', opts: [['0', '0: กลั้นไม่ได้'], ['1', '1: กลั้นไม่ได้บางครั้ง'], ['2', '2: กลั้นได้ปกติ']] }
+    ];
+
+    function calcAdlSummary(score) {
+      if (score >= 12) return { group: 'ติดสังคม (12-20 คะแนน)', cls: 'bg-emerald-100 text-emerald-800 border-emerald-300' };
+      if (score >= 5) return { group: 'ติดบ้าน (5-11 คะแนน)', cls: 'bg-amber-100 text-amber-800 border-amber-300' };
+      return { group: 'ติดเตียง (0-4 คะแนน)', cls: 'bg-rose-100 text-rose-800 border-rose-300' };
+    }
+
+    function toggleMapView() {
+      MAP_MODE = !MAP_MODE;
+      var btn = document.getElementById('btn-toggle-map');
+      var mapWrap = document.getElementById('map-view-wrap');
+      var cardsWrap = document.getElementById('patient-cards');
+      if (MAP_MODE) {
+        if (mapWrap) mapWrap.classList.remove('hidden');
+        if (cardsWrap) cardsWrap.classList.add('hidden');
+        if (btn) {
+          btn.className = 'bg-[#007a3d] text-white border border-[#006837] font-medium py-2 px-3 rounded-xl text-xs transition cursor-pointer';
+          btn.textContent = '📋 ดูแบบการ์ด';
+        }
+        renderPatients();
+      } else {
+        if (mapWrap) mapWrap.classList.add('hidden');
+        if (cardsWrap) cardsWrap.classList.remove('hidden');
+        if (btn) {
+          btn.className = 'bg-emerald-50 hover:bg-emerald-100 text-[#006837] border border-emerald-200 font-medium py-2 px-3 rounded-xl text-xs transition cursor-pointer';
+          btn.textContent = '🗺️ แผนที่';
+        }
+      }
+    }
+
+    function renderMobileMap(list) {
+      if (typeof L === 'undefined') return;
+      var mapEl = document.getElementById('mobile-leaflet-map');
+      if (!mapEl) return;
+      if (!MOBILE_MAP) {
+        MOBILE_MAP = L.map('mobile-leaflet-map').setView([17.227, 98.227], 11);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; OpenStreetMap'
+        }).addTo(MOBILE_MAP);
+        MOBILE_MAP_LAYER = L.layerGroup().addTo(MOBILE_MAP);
+      }
+      setTimeout(function() { MOBILE_MAP.invalidateSize(); }, 150);
+      MOBILE_MAP_LAYER.clearLayers();
+      var bounds = [];
+      list.forEach(function(p) {
+        var c = parseCoords(p.GPS_Coords, p.Map_Link);
+        if (!c) return;
+        bounds.push(c);
+        var lvStr = String(p.Vulnerability_Level || '');
+        var color = lvStr.indexOf('ระดับ 1') !== -1 ? '#e11d48' : (lvStr.indexOf('ระดับ 2') !== -1 ? '#f59e0b' : (lvStr.indexOf('ระดับ 3') !== -1 ? '#eab308' : '#007a3d'));
+        var marker = L.circleMarker(c, {
+          radius: 10,
+          fillColor: color,
+          color: '#ffffff',
+          weight: 2.5,
+          opacity: 1,
+          fillOpacity: 0.92
+        });
+        var navUrl = p.Map_Link || ('https://maps.google.com/?q=' + c[0] + ',' + c[1]);
+        var pop = '<div style="font-family:Kanit,sans-serif;min-width:190px;font-size:12px;">' +
+          '<div style="font-weight:600;color:#006837;">' + escapeHtml(p.Patient_Name) + ' (' + escapeHtml(p.Age) + ' ปี)</div>' +
+          '<div style="color:#475569;margin:2px 0;">' + escapeHtml(p.Address_Village) + ' ต.' + escapeHtml(p.Subdistrict) + '</div>' +
+          (lvStr ? ('<div style="font-size:11px;font-weight:600;">' + escapeHtml(lvStr) + '</div>') : '') +
+          '<div style="margin-top:6px;display:flex;gap:6px;">' +
+            '<a href="' + escapeHtml(navUrl) + '" target="_blank" style="background:#f1f5f9;color:#1e293b;padding:4px 8px;border-radius:6px;text-decoration:none;font-size:11px;">📍 นำทาง</a>' +
+            '<button type="button" onclick="openVisitById(\'' + escapeHtml(p.Patient_ID) + '\')" style="background:#007a3d;color:#fff;border:none;padding:4px 8px;border-radius:6px;font-size:11px;cursor:pointer;">📝 บันทึกเยี่ยม</button>' +
+          '</div></div>';
+        marker.bindPopup(pop);
+        marker.addTo(MOBILE_MAP_LAYER);
+      });
+      if (bounds.length) {
+        MOBILE_MAP.fitBounds(bounds, { padding: [25, 25], maxZoom: 15 });
+      }
     }
 
     var CUSTOM_SORT_MODE = false;
@@ -694,6 +800,7 @@
         routeBtn.classList.add('hidden');
       }
 
+      if (MAP_MODE) renderMobileMap(list);
       if (!list.length) {
         wrap.innerHTML = '<div class="bg-white rounded-2xl border border-slate-200 p-8 text-center text-sm text-slate-400">ไม่พบรายชื่อผู้ป่วยในเงื่อนไขที่เลือก</div>';
         return;
@@ -726,6 +833,12 @@
         if (p.Weight_kg) vitals.push('นน.: ' + p.Weight_kg + ' กก.');
         if (p.Height_cm) vitals.push('สส.: ' + p.Height_cm + ' ซม.');
         var vitalsHtml = vitals.length ? '<div class="text-[11px] text-[#006837] bg-green-50 border border-green-100 rounded-lg px-2.5 py-1.5 mt-2 font-medium">🩺 ' + escapeHtml(vitals.join(' • ')) + '</div>' : '';
+        var adlHtml = (p.ADL_Score !== undefined && String(p.ADL_Score).trim() !== '')
+          ? '<div class="text-[11px] text-indigo-900 bg-indigo-50 border border-indigo-200 rounded-lg px-2.5 py-1.5 mt-1.5 font-medium">📋 Barthel ADL: <b>' + escapeHtml(p.ADL_Score) + '/20</b> (' + escapeHtml(p.ADL_Group || '') + ')</div>'
+          : '';
+        var sigHtml = p.Signature_URL
+          ? '<div class="mt-1.5"><a href="' + escapeHtml(p.Signature_URL) + '" target="_blank" class="inline-flex items-center gap-1 text-[11px] text-[#006837] bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg font-medium">✍️ ดูลายเซ็นรับมอบสิ่งของ</a></div>'
+          : '';
         var noteHtml = p.Visit_Note ? '<div class="text-xs text-slate-600 bg-slate-50 rounded-lg px-2.5 py-1.5 mt-1.5">📝 ' + escapeHtml(p.Visit_Note) + '</div>' : '';
         var driveUrls = p.Photo_URLs ? String(p.Photo_URLs).split(',').map(function(u) { return u.trim(); }).filter(Boolean) : [];
         var localImgs = (p._localImages && p._localImages.length) ? p._localImages : [];
@@ -779,6 +892,8 @@
             '<div><b>ความช่วยเหลือ:</b> ' + escapeHtml(p.Assistance_Needs || '-') + '</div>' +
           '</div>' +
           vitalsHtml +
+          adlHtml +
+          sigHtml +
           noteHtml +
           teamNotesHtml +
           photosHtml +
@@ -882,6 +997,7 @@
           p.BP = val.visitExtra.bp || p.BP || '';
           p.Weight_kg = val.visitExtra.weight || p.Weight_kg || '';
           p.Height_cm = val.visitExtra.height || p.Height_cm || '';
+          if (val.visitExtra.adlScore !== '') { p.ADL_Score = val.visitExtra.adlScore; p.ADL_Group = val.visitExtra.adlGroup; }
         }
         try { localStorage.setItem(CACHE_DATA_KEY, JSON.stringify(ADMIN_DATA)); } catch (e) {}
         renderPatients();
@@ -1353,9 +1469,19 @@
         return '<option value="' + st + '"' + (p.Visit_Status === st ? ' selected' : '') + '>' + st + '</option>';
       }).join('');
 
+      var adlHtml = ADL_ITEMS.map(function(item, idx) {
+        var optsHtml = '<option value="">-- ไม่ระบุ --</option>' + item.opts.map(function(o) {
+          return '<option value="' + o[0] + '">' + escapeHtml(o[1]) + '</option>';
+        }).join('');
+        return '<div><label class="block text-[11px] text-slate-600 mb-0.5">' + escapeHtml(item.label) + '</label>' +
+          '<select class="sw-adl-sel w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs bg-white" data-idx="' + idx + '">' + optsHtml + '</select></div>';
+      }).join('');
+
+      var hasSigned = false;
+
       Swal.fire({
         title: 'บันทึกผลเยี่ยม: ' + p.Patient_Name,
-        width: '95%',
+        width: '96%',
         html:
           '<div class="space-y-2.5 text-left text-xs">' +
           '<div class="bg-green-50 border border-green-200 rounded-lg p-2 text-slate-700"><b>ที่อยู่:</b> ' + escapeHtml(p.Address_Village) + ' ต.' + escapeHtml(p.Subdistrict) + '</div>' +
@@ -1368,11 +1494,19 @@
             '<div><label class="block text-slate-500 mb-0.5">น้ำหนัก (กก.)</label><input id="sw-v-weight" type="text" class="swal2-input !m-0 !w-full !text-xs !h-9" placeholder="55" value="' + escapeHtml(p.Weight_kg || '') + '"></div>' +
             '<div><label class="block text-slate-500 mb-0.5">ส่วนสูง (ซม.)</label><input id="sw-v-height" type="text" class="swal2-input !m-0 !w-full !text-xs !h-9" placeholder="160" value="' + escapeHtml(p.Height_cm || '') + '"></div>' +
           '</div>' +
+          '<details class="rounded-xl border border-indigo-200 bg-indigo-50/40 p-2.5">' +
+            '<summary class="font-semibold text-indigo-900 cursor-pointer flex items-center justify-between"><span>📋 แบบประเมิน Barthel ADL (10 ข้อ)' + (p.ADL_Score ? (' — เดิม ' + escapeHtml(p.ADL_Score) + '/20') : '') + '</span><span id="sw-adl-badge" class="text-[11px] px-2 py-0.5 rounded-full bg-white border border-indigo-200">ยังไม่ได้ประเมิน</span></summary>' +
+            '<div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">' + adlHtml + '</div>' +
+          '</details>' +
           '<div><label class="block text-slate-500 mb-0.5">สถานะ</label><select id="sw-v-status" class="swal2-select !m-0 !w-full !text-xs">' + stOptions + '</select></div>' +
           '<div><label class="block text-slate-500 mb-0.5">ข้อมูลเยี่ยม / อาการ / การช่วยเหลือ</label><textarea id="sw-v-note" rows="3" class="swal2-textarea !m-0 !w-full !text-xs !h-auto" placeholder="พิมพ์ผลการเยี่ยม...">' + escapeHtml(p.Visit_Note || '') + '</textarea></div>' +
           '<div><label class="block text-slate-500 mb-0.5">แนบภาพประกอบ (สูงสุด 10 ภาพ)</label>' +
           '<input id="sw-v-photos" type="file" accept="image/*" capture="environment" multiple class="w-full text-xs border border-slate-200 rounded-lg p-2 bg-slate-50">' +
           '<div id="sw-v-photo-count" class="text-[11px] text-[#007a3d] mt-1"></div></div>' +
+          '<div class="rounded-xl border border-slate-200 bg-slate-50 p-2.5">' +
+            '<div class="flex items-center justify-between mb-1"><span class="font-medium text-slate-700">✍️ ลายเซ็นผู้รับมอบสิ่งของ / ญาติ / อสม.</span><button type="button" id="sw-v-sig-clear" class="text-[11px] text-rose-600 hover:underline cursor-pointer">ล้างลายเซ็น</button></div>' +
+            '<canvas id="sw-v-sig-canvas" width="320" height="130" class="w-full h-32 bg-white border border-slate-300 rounded-lg touch-none"></canvas>' +
+          '</div>' +
           '</div>',
         showCancelButton: true,
         confirmButtonText: navigator.onLine ? 'บันทึกและอัปโหลด' : '💾 บันทึกออฟไลน์',
@@ -1387,12 +1521,99 @@
               cnt.textContent = n > 10 ? 'เลือก ' + n + ' ภาพ (บันทึกเฉพาะ 10 ภาพแรก)' : (n > 0 ? 'เลือกแล้ว ' + n + ' / 10 ภาพ' : '');
             });
           }
+
+          // ADL Live Calculator
+          var adlSels = document.querySelectorAll('.sw-adl-sel');
+          var adlBadge = document.getElementById('sw-adl-badge');
+          function recalcAdl() {
+            var total = 0;
+            var anyPicked = false;
+            for (var i = 0; i < adlSels.length; i++) {
+              if (adlSels[i].value !== '') {
+                anyPicked = true;
+                total += parseInt(adlSels[i].value, 10) || 0;
+              }
+            }
+            if (!anyPicked) {
+              adlBadge.textContent = 'ยังไม่ได้ประเมิน';
+              adlBadge.className = 'text-[11px] px-2 py-0.5 rounded-full bg-white border border-indigo-200';
+            } else {
+              var sum = calcAdlSummary(total);
+              adlBadge.textContent = total + '/20 — ' + sum.group;
+              adlBadge.className = 'text-[11px] px-2 py-0.5 rounded-full border font-semibold ' + sum.cls;
+            }
+          }
+          for (var j = 0; j < adlSels.length; j++) {
+            adlSels[j].addEventListener('change', recalcAdl);
+          }
+
+          // Signature Pad (touch + mouse)
+          var canvas = document.getElementById('sw-v-sig-canvas');
+          var clrBtn = document.getElementById('sw-v-sig-clear');
+          if (canvas) {
+            var ctx = canvas.getContext('2d');
+            ctx.lineWidth = 2.2;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = '#0f172a';
+            var drawing = false;
+            function getPos(ev) {
+              var rect = canvas.getBoundingClientRect();
+              var pt = ev.touches ? ev.touches[0] : ev;
+              return {
+                x: (pt.clientX - rect.left) * (canvas.width / rect.width),
+                y: (pt.clientY - rect.top) * (canvas.height / rect.height)
+              };
+            }
+            function startDraw(ev) {
+              ev.preventDefault();
+              drawing = true;
+              hasSigned = true;
+              var pos = getPos(ev);
+              ctx.beginPath();
+              ctx.moveTo(pos.x, pos.y);
+            }
+            function moveDraw(ev) {
+              if (!drawing) return;
+              ev.preventDefault();
+              var pos = getPos(ev);
+              ctx.lineTo(pos.x, pos.y);
+              ctx.stroke();
+            }
+            function endDraw() { drawing = false; }
+            canvas.addEventListener('mousedown', startDraw);
+            canvas.addEventListener('mousemove', moveDraw);
+            window.addEventListener('mouseup', endDraw);
+            canvas.addEventListener('touchstart', startDraw, { passive: false });
+            canvas.addEventListener('touchmove', moveDraw, { passive: false });
+            canvas.addEventListener('touchend', endDraw);
+            if (clrBtn) {
+              clrBtn.addEventListener('click', function() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                hasSigned = false;
+              });
+            }
+          }
         },
         preConfirm: function() {
+          var adlSels = document.querySelectorAll('.sw-adl-sel');
+          var adlTotal = 0;
+          var anyAdl = false;
+          for (var i = 0; i < adlSels.length; i++) {
+            if (adlSels[i].value !== '') {
+              anyAdl = true;
+              adlTotal += parseInt(adlSels[i].value, 10) || 0;
+            }
+          }
+          var adlScore = anyAdl ? String(adlTotal) : '';
+          var adlGroup = anyAdl ? calcAdlSummary(adlTotal).group : '';
+
+          var sigCanvas = document.getElementById('sw-v-sig-canvas');
+          var sigDataUrl = (hasSigned && sigCanvas) ? sigCanvas.toDataURL('image/png') : '';
+
           var files = document.getElementById('sw-v-photos').files;
           var selected = [];
-          for (var i = 0; i < Math.min(files.length, 10); i++) {
-            selected.push(compressImageFile(files[i], 900, 0.65));
+          for (var j = 0; j < Math.min(files.length, 10); j++) {
+            selected.push(compressImageFile(files[j], 900, 0.65));
           }
           return Promise.all(selected).then(function(b64List) {
             return {
@@ -1404,7 +1625,10 @@
                 cid: document.getElementById('sw-v-cid').value.trim(),
                 bp: document.getElementById('sw-v-bp').value.trim(),
                 weight: document.getElementById('sw-v-weight').value.trim(),
-                height: document.getElementById('sw-v-height').value.trim()
+                height: document.getElementById('sw-v-height').value.trim(),
+                adlScore: adlScore,
+                adlGroup: adlGroup,
+                signatureDataUrl: sigDataUrl
               }
             };
           });
@@ -1459,6 +1683,7 @@
       document.getElementById('filter-level').addEventListener('change', renderPatients);
       document.getElementById('btn-sort-nearest').addEventListener('click', toggleSortNearest);
       document.getElementById('btn-sort-custom').addEventListener('click', toggleCustomSort);
+      document.getElementById('btn-toggle-map').addEventListener('click', toggleMapView);
       document.getElementById('btn-sync-all').addEventListener('click', syncAllOffline);
 
       var stBtns = document.querySelectorAll('.st-filter-btn');

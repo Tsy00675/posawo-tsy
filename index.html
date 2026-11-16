@@ -1,0 +1,2958 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบออกหน่วย พอ.สว. และเยี่ยมบ้าน | อ.ท่าสองยาง จ.ตาก</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    body {
+      font-family: 'Kanit', sans-serif;
+      background-color: #f4f9f6;
+      color: #1e293b;
+    }
+    .font-sarabun {
+      font-family: 'Sarabun', sans-serif;
+    }
+    .moph-header {
+      background: linear-gradient(135deg, #005a2e 0%, #007a3d 55%, #009245 100%);
+    }
+    .moph-btn {
+      background-color: #007a3d;
+      color: #ffffff;
+    }
+    .moph-btn:hover {
+      background-color: #006130;
+    }
+    .tab-active {
+      background-color: #007a3d;
+      color: #ffffff;
+      box-shadow: 0 4px 6px -1px rgba(0, 122, 61, 0.25);
+    }
+    .tab-inactive {
+      background-color: #ffffff;
+      color: #475569;
+      border: 1px solid #d1e7dd;
+    }
+    .tab-inactive:hover {
+      background-color: #e8f5ee;
+      color: #007a3d;
+      border-color: #007a3d;
+    }
+    #patient-map {
+      height: 430px;
+      width: 100%;
+      border-radius: 14px;
+      z-index: 1;
+    }
+    #print-area {
+      display: none;
+    }
+    @media print {
+      @page {
+        size: A4 landscape;
+        margin: 0;
+      }
+      body * {
+        visibility: hidden;
+      }
+      #print-area, #print-area * {
+        visibility: visible;
+      }
+      #print-area {
+        display: block !important;
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        padding: 12mm 14mm;
+        font-family: 'Sarabun', sans-serif;
+        color: #000000;
+        background: #ffffff;
+      }
+    }
+  </style>
+  <style id="dynamic-print-page"></style>
+  <meta name="theme-color" content="#007a3d">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="พอ.สว. ท่าสองยาง">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="apple-touch-icon" href="./icon-192.png">
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- Header (MOPH Green) -->
+  <header class="moph-header text-white shadow-md">
+    <div class="max-w-6xl mx-auto px-4 py-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div id="header-logo-wrap" class="w-12 h-12 rounded-xl bg-white/15 backdrop-blur flex items-center justify-center shrink-0 overflow-hidden border border-white/30">
+          <i class="fa-solid fa-kit-medical text-2xl text-white"></i>
+        </div>
+        <div>
+          <h1 id="header-app-title" class="text-lg sm:text-xl font-semibold leading-tight">
+            ระบบลงทะเบียนออกหน่วยแพทย์อาสา พอ.สว. และเยี่ยมบ้าน
+          </h1>
+          <p id="header-org-name" class="text-xs sm:text-sm text-green-100">
+            สำนักงานสาธารณสุขอำเภอท่าสองยาง จังหวัดตาก
+          </p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 flex-wrap">
+        <button type="button" id="btn-pwa-install" class="hidden text-xs bg-white text-[#006837] font-semibold px-3 py-1.5 rounded-full shadow-sm hover:bg-green-50 transition cursor-pointer">
+          📲 ติดตั้งเป็นแอป
+        </button>
+        <button type="button" id="btn-pwa-api-cfg" class="text-xs bg-white/15 hover:bg-white/25 border border-white/25 px-3 py-1.5 rounded-full transition cursor-pointer">
+          ⚙️ เชื่อมต่อ API
+        </button>
+        <div class="flex items-center gap-2 text-xs bg-white/15 px-3 py-1.5 rounded-full border border-white/25">
+          <span class="w-2 h-2 rounded-full bg-lime-300 animate-pulse"></span>
+          <span>ออกหน่วยประจำเดือน (รอบละ 2 วัน)</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Active Round Banner -->
+  <div class="max-w-6xl w-full mx-auto px-4 mt-4">
+    <div id="active-round-banner" class="bg-white border border-green-200 rounded-2xl p-4 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div class="flex items-start gap-3">
+        <div class="w-10 h-10 rounded-xl bg-green-100 text-[#007a3d] flex items-center justify-center shrink-0 mt-0.5">
+          <i class="fa-regular fa-calendar-check text-lg"></i>
+        </div>
+        <div>
+          <div class="text-xs font-medium text-[#007a3d] uppercase tracking-wide">รอบออกหน่วยที่เปิดรับลงทะเบียน</div>
+          <div id="banner-round-title" class="text-base font-semibold text-slate-800">กำลังโหลดข้อมูล...</div>
+          <div id="banner-round-detail" class="text-xs text-slate-500 mt-0.5"></div>
+        </div>
+      </div>
+      <div class="flex items-center gap-4 text-sm shrink-0">
+        <div class="bg-green-50 px-3 py-2 rounded-xl text-center border border-green-200">
+          <div id="stat-vol-count" class="text-lg font-bold text-[#007a3d]">0</div>
+          <div class="text-[11px] text-slate-600">อาสาสมัคร/จนท.</div>
+        </div>
+        <div class="bg-emerald-50 px-3 py-2 rounded-xl text-center border border-emerald-200">
+          <div id="stat-pat-count" class="text-lg font-bold text-[#006837]">0</div>
+          <div class="text-[11px] text-slate-600">ผู้ป่วยเยี่ยมบ้าน</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Navigation Tabs -->
+  <nav class="max-w-6xl w-full mx-auto px-4 mt-4">
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-2">
+      <button type="button" data-tab="volunteer" id="tab-btn-volunteer" class="nav-tab-btn tab-active py-2.5 px-3 rounded-xl text-sm font-medium transition flex items-center justify-center gap-2 cursor-pointer">
+        <i class="fa-solid fa-user-doctor"></i>
+        <span>ลงทะเบียนออกหน่วย</span>
+      </button>
+      <button type="button" data-tab="patient" id="tab-btn-patient" class="nav-tab-btn tab-inactive py-2.5 px-3 rounded-xl text-sm font-medium transition flex items-center justify-center gap-2 cursor-pointer">
+        <i class="fa-solid fa-house-medical"></i>
+        <span>ลงชื่อผู้ป่วยเยี่ยมบ้าน</span>
+      </button>
+      <button type="button" data-tab="directory" id="tab-btn-directory" class="nav-tab-btn tab-inactive py-2.5 px-3 rounded-xl text-sm font-medium transition flex items-center justify-center gap-2 cursor-pointer">
+        <i class="fa-solid fa-clipboard-list"></i>
+        <span>รายชื่อออกหน่วย</span>
+      </button>
+      <button type="button" data-tab="member" id="tab-btn-member" class="nav-tab-btn tab-inactive py-2.5 px-3 rounded-xl text-sm font-medium transition flex items-center justify-center gap-2 cursor-pointer">
+        <i class="fa-solid fa-id-card"></i>
+        <span>เช็คข้อมูลสมาชิก พอ.สว.</span>
+      </button>
+      <button type="button" data-tab="admin" id="tab-btn-admin" class="nav-tab-btn tab-inactive py-2.5 px-3 rounded-xl text-sm font-medium transition flex items-center justify-center gap-2 cursor-pointer col-span-2 md:col-span-1">
+        <i class="fa-solid fa-shield-halved"></i>
+        <span>ผู้ดูแลระบบ</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="max-w-6xl w-full mx-auto px-4 py-5 flex-1">
+
+    <!-- TAB 1: Volunteer Registration -->
+    <section id="sec-volunteer" class="bg-white rounded-2xl shadow-sm border border-green-100 p-5 sm:p-6">
+      <div class="border-b border-slate-100 pb-4 mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div>
+          <h2 class="text-lg font-semibold text-slate-800 flex items-center gap-2">
+            <i class="fa-solid fa-user-plus text-[#007a3d]"></i>
+            แบบฟอร์มลงทะเบียนผู้ร่วมออกหน่วยแพทย์อาสา พอ.สว.
+          </h2>
+          <p class="text-xs text-slate-500 mt-1">สำหรับแพทย์ พยาบาล ทันตบุคลากร เภสัชกร เจ้าหน้าที่สาธารณสุข อาสาสมัคร พอ.สว. และ อสม.</p>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+          <span id="vol-net-status-badge" class="text-xs font-medium px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">🟢 ออนไลน์</span>
+        </div>
+      </div>
+
+      <!-- Volunteer Offline Queue Panel -->
+      <div id="vol-offline-queue-panel" class="hidden mb-5 rounded-2xl bg-amber-50 border border-amber-200 p-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+          <div>
+            <div class="text-sm font-semibold text-amber-900 flex items-center gap-1.5">
+              <span>📦</span>
+              <span>รายชื่อลงทะเบียนออฟไลน์ค้างส่ง (<span id="vol-offline-queue-count">0</span> รายการ)</span>
+            </div>
+            <div class="text-xs text-amber-700 mt-0.5">เมื่อกลับมามีสัญญาณอินเทอร์เน็ต กดปุ่มซิงค์เพื่อส่งขึ้น Google Sheet ได้ทันที</div>
+          </div>
+          <button type="button" id="btn-sync-vol-offline" class="bg-[#007a3d] hover:bg-[#006837] text-white text-xs font-medium px-4 py-2 rounded-xl shadow-sm transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap">
+            <span>🔄</span>
+            <span>ซิงค์ข้อมูลขึ้นระบบ</span>
+          </button>
+        </div>
+        <div id="vol-offline-queue-list" class="space-y-2"></div>
+      </div>
+
+      <form id="form-volunteer" class="space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="md:col-span-2">
+            <label class="block text-sm font-medium text-slate-700 mb-1">รอบออกหน่วยประจำเดือน (2 วัน) <span class="text-rose-500">*</span></label>
+            <select id="vol-round" required class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-[#007a3d] outline-none bg-white"></select>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">คำนำหน้า <span class="text-rose-500">*</span></label>
+            <select id="vol-prefix" required class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-[#007a3d] outline-none bg-white">
+              <option value="นาย">นาย</option>
+              <option value="นาง">นาง</option>
+              <option value="นางสาว">นางสาว</option>
+              <option value="นพ.">นพ.</option>
+              <option value="พญ.">พญ.</option>
+              <option value="ทพ.">ทพ.</option>
+              <option value="ทพญ.">ทพญ.</option>
+              <option value="ภก.">ภก.</option>
+              <option value="ภญ.">ภญ.</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">ชื่อ - นามสกุล <span class="text-rose-500">*</span></label>
+            <input type="text" id="vol-fullname" required placeholder="ระบุชื่อและนามสกุล" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-[#007a3d] outline-none">
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">ตำแหน่ง / วิชาชีพ <span class="text-rose-500">*</span></label>
+            <div class="relative" id="wrap-vol-position">
+              <input type="text" id="vol-position" required autocomplete="off" placeholder="พิมพ์ค้นหา หรือเลือก/กรอกตำแหน่งวิชาชีพ..." class="w-full rounded-xl border border-slate-300 pl-3.5 pr-9 py-2.5 text-sm focus:ring-2 focus:ring-[#007a3d] outline-none bg-white">
+              <button type="button" id="btn-toggle-vol-position" tabindex="-1" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#007a3d] p-1 cursor-pointer" title="แสดงรายการตำแหน่ง/วิชาชีพ">
+                <i class="fa-solid fa-chevron-down text-xs"></i>
+              </button>
+              <div id="vol-position-dropdown" class="hidden absolute z-30 left-0 right-0 mt-1 max-h-56 overflow-y-auto bg-white border border-green-200 rounded-xl shadow-lg text-sm"></div>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">สถานที่ปฏิบัติงาน / สังกัด <span class="text-rose-500">*</span></label>
+            <div class="relative" id="wrap-vol-affiliation">
+              <input type="text" id="vol-affiliation" required autocomplete="off" placeholder="พิมพ์ค้นหา หรือเลือก/กรอกสถานที่ปฏิบัติงาน..." class="w-full rounded-xl border border-slate-300 pl-3.5 pr-9 py-2.5 text-sm focus:ring-2 focus:ring-[#007a3d] outline-none bg-white">
+              <button type="button" id="btn-toggle-vol-affiliation" tabindex="-1" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#007a3d] p-1 cursor-pointer" title="แสดงรายการสถานที่ปฏิบัติงาน">
+                <i class="fa-solid fa-chevron-down text-xs"></i>
+              </button>
+              <div id="vol-affiliation-dropdown" class="hidden absolute z-30 left-0 right-0 mt-1 max-h-56 overflow-y-auto bg-white border border-green-200 rounded-xl shadow-lg text-sm"></div>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">เบอร์โทรศัพท์ติดต่อ <span class="text-rose-500">*</span></label>
+            <input type="tel" id="vol-phone" required placeholder="08X-XXX-XXXX" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-[#007a3d] outline-none">
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">ทีมปฏิบัติงานที่ประสงค์เข้าร่วม <span class="text-rose-500">*</span></label>
+            <select id="vol-team" required class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-[#007a3d] outline-none bg-white">
+              <option value="หน่วยแพทย์เคลื่อนที่ (ตรวจรักษา/จ่ายยา)">หน่วยแพทย์เคลื่อนที่ (ตรวจรักษา/จ่ายยา)</option>
+              <option value="ทีมเยี่ยมบ้านผู้ป่วย (Home Visit)">ทีมเยี่ยมบ้านผู้ป่วย (Home Visit)</option>
+              <option value="ทีมทันตกรรมเคลื่อนที่">ทีมทันตกรรมเคลื่อนที่</option>
+              <option value="ทีมคัดกรอง/ทะเบียน/สนับสนุน">ทีมคัดกรอง/ทะเบียน/สนับสนุน</option>
+              <option value="ทีมแพทย์แผนไทย / กายภาพบำบัด">ทีมแพทย์แผนไทย / กายภาพบำบัด</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="pt-3 flex flex-col sm:flex-row justify-end gap-2.5">
+          <button type="button" id="btn-save-offline-vol" class="w-full sm:w-auto bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-medium px-5 py-3 rounded-xl transition flex items-center justify-center gap-2 cursor-pointer text-sm">
+            <span>💾</span>
+            <span>บันทึกออฟไลน์ไว้ในเครื่อง</span>
+          </button>
+          <button type="submit" id="btn-submit-vol" class="w-full sm:w-auto moph-btn font-medium px-6 py-3 rounded-xl shadow-sm transition flex items-center justify-center gap-2 cursor-pointer">
+            <i class="fa-solid fa-paper-plane"></i>
+            <span>ยืนยันลงทะเบียนออกหน่วย</span>
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- TAB 2: Patient Home Visit Registration -->
+    <section id="sec-patient" class="hidden bg-white rounded-2xl shadow-sm border border-green-100 p-5 sm:p-6">
+      <div class="border-b border-slate-100 pb-4 mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div>
+          <h2 class="text-lg font-semibold text-slate-800 flex items-center gap-2">
+            <i class="fa-solid fa-house-medical text-[#007a3d]"></i>
+            แบบฟอร์มลงชื่อผู้ป่วยเข้ารับการเยี่ยมบ้าน (วันออกหน่วย พอ.สว.)
+          </h2>
+          <p class="text-xs text-slate-500 mt-1">สำหรับ รพ.สต. / สสช. / อสม. หรือญาติ แจ้งรายชื่อผู้ป่วยกลุ่มเปราะบางและผู้ด้อยโอกาสทางด้านสังคม</p>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+          <span id="net-status-badge" class="text-xs font-medium px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">🟢 ออนไลน์</span>
+          <span id="draft-status-badge" class="hidden text-[11px] font-medium px-2.5 py-1 rounded-full bg-slate-100 text-slate-600">💾 บันทึกร่างอัตโนมัติ</span>
+        </div>
+      </div>
+
+      <!-- Offline Queue Panel -->
+      <div id="offline-queue-panel" class="hidden mb-5 rounded-2xl bg-amber-50 border border-amber-200 p-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+          <div>
+            <div class="text-sm font-semibold text-amber-900 flex items-center gap-1.5">
+              <span>📦</span>
+              <span>ข้อมูลที่บันทึกแบบออฟไลน์ค้างส่ง (<span id="offline-queue-count">0</span> รายการ)</span>
+            </div>
+            <div class="text-xs text-amber-700 mt-0.5">เมื่อกลับมามีสัญญาณอินเทอร์เน็ต กดปุ่มซิงค์เพื่อส่งขึ้น Google Sheet ได้ทันที</div>
+          </div>
+          <button type="button" id="btn-sync-offline" class="bg-[#007a3d] hover:bg-[#006837] text-white text-xs font-medium px-4 py-2 rounded-xl shadow-sm transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap">
+            <span>🔄</span>
+            <span>ซิงค์ข้อมูลขึ้นระบบ</span>
+          </button>
+        </div>
+        <div id="offline-queue-list" class="space-y-2"></div>
+      </div>
+
+      <form id="form-patient" class="space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="md:col-span-2">
+            <label class="block text-sm font-medium text-slate-700 mb-1">รอบออกหน่วยประจำเดือน (2 วัน) <span class="text-rose-500">*</span></label>
+            <select id="pat-round" required class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-[#007a3d] outline-none bg-white"></select>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">ชื่อ - นามสกุลผู้ป่วย <span class="text-rose-500">*</span></label>
+            <input type="text" id="pat-name" required placeholder="ระบุชื่อ-นามสกุลผู้ป่วย" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-[#007a3d] outline-none">
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">อายุ (ปี) <span class="text-rose-500">*</span></label>
+              <input type="number" id="pat-age" required min="0" max="120" placeholder="เช่น 75" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-[#007a3d] outline-none">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">เบอร์โทรผู้ป่วย/ญาติ</label>
+              <input type="tel" id="pat-phone" placeholder="08X-XXX-XXXX" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-[#007a3d] outline-none">
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">เลขประจำตัวประชาชน 13 หลัก (ถ้ามี)</label>
+            <input type="text" id="pat-cid" maxlength="13" placeholder="กรอกเฉพาะตัวเลข 13 หลัก (ไม่บังคับ)" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-[#007a3d] outline-none">
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">ตำบล (อำเภอท่าสองยาง) <span class="text-rose-500">*</span></label>
+            <select id="pat-subdistrict" required class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-[#007a3d] outline-none bg-white">
+              <option value="">-- เลือกตำบล --</option>
+              <option value="แม่ต้าน">ตำบลแม่ต้าน</option>
+              <option value="แม่อุสุ">ตำบลแม่อุสุ</option>
+              <option value="แม่หละ">ตำบลแม่หละ</option>
+              <option value="แม่สอง">ตำบลแม่สอง</option>
+              <option value="ท่าสองยาง">ตำบลท่าสองยาง</option>
+              <option value="แม่วะหลวง">ตำบลแม่วะหลวง</option>
+            </select>
+          </div>
+
+          <div class="md:col-span-2">
+            <label class="block text-sm font-medium text-slate-700 mb-1">ที่อยู่ (บ้านเลขที่ / หมู่ที่ / ชื่อหมู่บ้าน) <span class="text-rose-500">*</span></label>
+            <input type="text" id="pat-address" required placeholder="เช่น 67/พ หมู่ 4 บ้านแม่สอง" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-[#007a3d] outline-none">
+          </div>
+
+          <!-- GPS Auto Fetch Section -->
+          <div class="md:col-span-2 bg-green-50/70 border border-green-200 rounded-xl p-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+              <label class="text-sm font-medium text-[#005a2e] flex items-center gap-1.5">
+                <i class="fa-solid fa-location-dot text-[#007a3d]"></i>
+                พิกัดบ้านผู้ป่วย (GPS)
+              </label>
+              <button type="button" id="btn-get-gps" class="moph-btn text-xs font-medium px-3.5 py-2 rounded-lg transition flex items-center justify-center gap-1.5 shadow-sm cursor-pointer">
+                <i class="fa-solid fa-crosshairs"></i>
+                <span>ดึงพิกัดอัตโนมัติจากตำแหน่งปัจจุบัน</span>
+              </button>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <input type="text" id="pat-gps" placeholder="ค่าพิกัด (ละติจูด, ลองจิจูด) เช่น 17.2345, 98.2134" class="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-xs focus:ring-2 focus:ring-[#007a3d] outline-none">
+              </div>
+              <div>
+                <input type="url" id="pat-map" placeholder="ลิงก์ Google Maps (สร้างให้อัตโนมัติเมื่อดึงพิกัด)" class="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-xs focus:ring-2 focus:ring-[#007a3d] outline-none">
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">กลุ่มเป้าหมาย / สภาพปัญหา <span class="text-rose-500">*</span></label>
+            <select id="pat-group" required class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-[#007a3d] outline-none bg-white">
+              <option value="ผู้ป่วยติดเตียง / ติดบ้าน">ผู้ป่วยติดเตียง / ติดบ้าน</option>
+              <option value="ผู้พิการทางการเคลื่อนไหวหรือทางร่างกาย">ผู้พิการทางการเคลื่อนไหวหรือทางร่างกาย</option>
+              <option value="ผู้พิการทางการเห็น">ผู้พิการทางการเห็น</option>
+              <option value="ผู้สูงอายุยากไร้ / ผู้ยากไร้">ผู้สูงอายุยากไร้ / ผู้ยากไร้</option>
+              <option value="ผู้ป่วยในพระบรมราชานุเคราะห์">ผู้ป่วยในพระบรมราชานุเคราะห์</option>
+              <option value="ผู้ป่วยโรคเรื้อรัง (NCD)">ผู้ป่วยโรคเรื้อรัง (NCD)</option>
+              <option value="อื่นๆ">อื่นๆ</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">ป่วยเป็นโรค / การวินิจฉัย <span class="text-rose-500">*</span></label>
+            <input type="text" id="pat-disease" required placeholder="เช่น เบาหวาน, ความดันโลหิตสูง, อัมพฤกษ์, รับนมผงพระราชทาน" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-[#007a3d] outline-none">
+          </div>
+
+          <div class="md:col-span-2">
+            <label class="block text-sm font-medium text-slate-700 mb-1">ประวัติการมาโรงพยาบาลท่าสองยาง <span class="text-rose-500">*</span></label>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <select id="pat-hosp-status" required class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-[#007a3d] outline-none bg-white">
+                <option value="เคยมารับบริการที่ รพ.ท่าสองยาง (*รับยาที่ รพ.ท่าสองยาง)">เคยมารับบริการที่ รพ.ท่าสองยาง (*รับยาที่ รพ.ท่าสองยาง)</option>
+                <option value="เคยมารับบริการที่ รพ.ท่าสองยาง (ขาดนัด/ไม่ได้ไปรับยา)">เคยมารับบริการที่ รพ.ท่าสองยาง (ขาดนัด/ไม่ได้ไปรับยา)</option>
+                <option value="ผู้ป่วยส่งต่อ / เยี่ยมติดตามหลังจำหน่ายจาก รพ.ท่าสองยาง">ผู้ป่วยส่งต่อ / เยี่ยมติดตามหลังจำหน่ายจาก รพ.ท่าสองยาง</option>
+                <option value="ไม่เคยมีประวัติมารับบริการที่ รพ.ท่าสองยาง">ไม่เคยมีประวัติมารับบริการที่ รพ.ท่าสองยาง</option>
+              </select>
+              <input type="text" id="pat-hosp-detail" placeholder="รายละเอียดเพิ่มเติม (เช่น คลินิก/HN ถ้าทราบ)" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-[#007a3d] outline-none">
+            </div>
+          </div>
+
+          <div class="md:col-span-2">
+            <label class="block text-sm font-medium text-slate-700 mb-1">สภาพความเป็นอยู่ / ผู้ดูแล <span class="text-rose-500">*</span></label>
+            <input type="text" id="pat-caregiver" required placeholder="เช่น มีบิดาและมารดาเป็นผู้ดูแล, มีภรรยาเป็นผู้ดูแล, มีสามีเป็นผู้ดูแล, อาศัยอยู่ลำพัง" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-[#007a3d] outline-none">
+          </div>
+
+          <div class="md:col-span-2">
+            <label class="block text-sm font-medium text-slate-700 mb-1">ความต้องการช่วยเหลือ (ระบุเป็นข้อ 1, 2, 3...) <span class="text-rose-500">*</span></label>
+            <textarea id="pat-assistance" required rows="3" placeholder="1. สนับสนุนถุงยังชีพ&#10;2. เยี่ยมบ้านโดยทีมสหวิชาชีพ&#10;3. สนับสนุนผ้าอ้อมผู้ใหญ่ (แพมเพิส)" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-[#007a3d] outline-none"></textarea>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">ชื่อผู้แจ้ง / ผู้ประสานงาน <span class="text-rose-500">*</span></label>
+            <input type="text" id="pat-reporter" required placeholder="ชื่อ อสม. / จนท.ผู้แจ้ง" class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-[#007a3d] outline-none">
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">หน่วยบริการ / รพ.สต. ที่แจ้ง <span class="text-rose-500">*</span></label>
+            <input type="text" id="pat-agency" required placeholder="เช่น รพ.สต.บ้านหนองบัว, สสช...." class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-[#007a3d] outline-none">
+          </div>
+
+          <div class="md:col-span-2 bg-slate-50 border border-slate-200 rounded-xl p-3.5">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <label class="text-sm font-medium text-slate-700 flex items-center gap-1.5">
+                <i class="fa-solid fa-camera text-[#007a3d]"></i>
+                <span>แนบรูปถ่ายสภาพบ้าน/ผู้ป่วย (ไม่บังคับ สูงสุด 3 รูป)</span>
+              </label>
+              <button type="button" id="btn-clear-pat-photos" class="hidden text-xs text-rose-600 hover:underline cursor-pointer">ล้างรูปที่เลือก</button>
+            </div>
+            <input type="file" id="pat-photos" accept="image/*" multiple class="mt-2 block w-full text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-green-100 file:text-[#006837] hover:file:bg-green-200 cursor-pointer">
+            <div id="pat-photo-preview" class="hidden mt-2 flex flex-wrap gap-2"></div>
+          </div>
+        </div>
+
+        <div class="pt-3 flex flex-col sm:flex-row justify-end gap-2.5">
+          <button type="button" id="btn-save-offline-pat" class="w-full sm:w-auto bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-medium px-5 py-3 rounded-xl transition flex items-center justify-center gap-2 cursor-pointer text-sm">
+            <span>💾</span>
+            <span>บันทึกออฟไลน์ไว้ในเครื่อง</span>
+          </button>
+          <button type="submit" id="btn-submit-pat" class="w-full sm:w-auto moph-btn font-medium px-6 py-3 rounded-xl shadow-sm transition flex items-center justify-center gap-2 cursor-pointer">
+            <i class="fa-solid fa-house-medical-circle-check"></i>
+            <span>บันทึกข้อมูลผู้ป่วยเยี่ยมบ้าน</span>
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- TAB 3: Public Directory -->
+    <section id="sec-directory" class="hidden space-y-4">
+      <div class="bg-white rounded-2xl shadow-sm border border-green-100 p-4 sm:p-5">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <div>
+            <h2 class="text-lg font-semibold text-slate-800 flex items-center gap-2">
+              <i class="fa-solid fa-magnifying-glass text-[#007a3d]"></i>
+              ตรวจสอบรายชื่อผู้ร่วมออกหน่วย พอ.สว.
+            </h2>
+            <p class="text-xs text-slate-500 mt-0.5">ข้อมูลรายชื่อผู้ป่วยเยี่ยมบ้านและแผนที่พิกัดสงวนสิทธิ์เฉพาะผู้ดูแลระบบ (PDPA)</p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <select id="dir-round-filter" class="rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white outline-none"></select>
+            <input type="text" id="dir-search" placeholder="ค้นหาชื่อ / หน่วยงาน / ทีม..." class="rounded-xl border border-slate-300 px-3 py-2 text-sm outline-none">
+          </div>
+        </div>
+
+        <div id="dir-table-wrap" class="overflow-x-auto"></div>
+      </div>
+    </section>
+
+
+
+    <!-- TAB 4: Member Registry Lookup -->
+    <section id="sec-member" class="hidden space-y-4">
+      <div class="bg-white rounded-2xl shadow-sm border border-green-100 p-5 sm:p-6">
+        <div class="border-b border-slate-100 pb-4 mb-5">
+          <h2 class="text-lg font-semibold text-slate-800 flex items-center gap-2">
+            <span>🪪</span>
+            <span>ตรวจสอบทะเบียนสมาชิกอาสาสมัคร พอ.สว. จังหวัดตาก</span>
+          </h2>
+          <p class="text-xs text-slate-500 mt-1">เช็คข้อมูลส่วนตัว ประวัติการออกหน่วยสะสม และของพระราชทานที่ได้รับ ด้วยชื่อ นามสกุล หรือเลขประจำตัวสมาชิก (เดิม/ใหม่) ✨💚</p>
+        </div>
+
+        <form id="form-member-search" class="flex flex-col sm:flex-row gap-2.5 mb-5">
+          <div class="relative flex-1">
+            <input type="text" id="member-search-input" placeholder="พิมพ์ชื่อ, นามสกุล หรือเลขสมาชิก เช่น อลงกต, ไพรวิไลวรรณ, 687932..." class="w-full rounded-xl border border-slate-300 pl-4 pr-4 py-3 text-sm focus:ring-2 focus:ring-[#007a3d] outline-none">
+          </div>
+          <button type="submit" id="btn-member-search" class="moph-btn font-medium px-6 py-3 rounded-xl shadow-sm transition flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap">
+            <span>🔍</span>
+            <span>ค้นหาข้อมูล</span>
+          </button>
+        </form>
+
+        <div id="member-search-results">
+          <div class="rounded-2xl bg-green-50/60 border border-green-100 p-6 text-center text-sm text-slate-600">
+            <div class="text-3xl mb-2">🌸✨</div>
+            <div class="font-medium text-slate-700">พิมพ์ชื่อ นามสกุล หรือเลขประจำตัวสมาชิกด้านบน เพื่อค้นหาข้อมูลได้เลยนะคะ/ครับ</div>
+            <div class="text-xs text-slate-500 mt-1">รองรับการค้นหาทั้งชื่อจริง นามสกุล เลขประจำตัวเดิม และเลขประจำตัวใหม่</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 5: Admin Dashboard -->
+    <section id="sec-admin" class="hidden space-y-5">
+      <div id="admin-login-box" class="max-w-md mx-auto bg-white rounded-2xl shadow-sm border border-green-100 p-6 text-center">
+        <div class="w-14 h-14 rounded-2xl bg-green-100 text-[#007a3d] flex items-center justify-center mx-auto mb-3">
+          <i class="fa-solid fa-lock text-2xl"></i>
+        </div>
+        <h2 class="text-lg font-semibold text-slate-800">เข้าสู่ระบบผู้ดูแล (Admin)</h2>
+        <p class="text-xs text-slate-500 mt-1 mb-4">กรุณากรอกรหัสผ่านเพื่อจัดการรอบออกหน่วย อัปเดตผลพร้อมรูปเยี่ยมบ้าน แจ้งเตือน LINE และดูแดชบอร์ดสรุปยอด</p>
+        <form id="form-admin-login" class="space-y-3">
+          <input type="password" id="admin-passcode-input" required autocomplete="off" placeholder="รหัสผ่านผู้ดูแลระบบ" class="w-full text-center rounded-xl border border-slate-300 px-4 py-2.5 text-sm focus:ring-2 focus:ring-[#007a3d] outline-none">
+          <button type="submit" class="w-full moph-btn font-medium py-2.5 rounded-xl transition cursor-pointer">
+            เข้าสู่ระบบ
+          </button>
+        </form>
+      </div>
+
+      <div id="admin-panel" class="hidden space-y-5">
+        <!-- Toolbar -->
+        <div class="bg-white rounded-2xl shadow-sm border border-green-100 p-4 flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-2">
+            <label class="text-sm font-medium text-slate-700">เลือกรอบ:</label>
+            <select id="admin-round-filter" class="rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white outline-none"></select>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button type="button" id="btn-adm-add-round" class="moph-btn text-xs sm:text-sm px-3 py-2 rounded-xl flex items-center gap-1.5 cursor-pointer">
+              <i class="fa-solid fa-plus"></i> เพิ่มรอบเดือน
+            </button>
+            <button type="button" id="btn-adm-send-line" class="bg-[#06c755] hover:bg-[#05b34c] text-white text-xs sm:text-sm px-3 py-2 rounded-xl flex items-center gap-1.5 cursor-pointer">
+              <i class="fa-brands fa-line"></i> ส่งสรุปเข้า LINE
+            </button>
+            <button type="button" id="btn-adm-print-vol" class="bg-slate-700 hover:bg-slate-800 text-white text-xs sm:text-sm px-3 py-2 rounded-xl flex items-center gap-1.5 cursor-pointer">
+              <i class="fa-solid fa-print"></i> พิมพ์รายชื่อออกหน่วย
+            </button>
+            <button type="button" id="btn-adm-print-pat" class="bg-[#006837] hover:bg-[#00502a] text-white text-xs sm:text-sm px-3 py-2 rounded-xl flex items-center gap-1.5 cursor-pointer">
+              <i class="fa-solid fa-print"></i> พิมพ์รายงานเยี่ยมบ้าน (A4 แนวนอน)
+            </button>
+            <button type="button" id="btn-adm-print-photos" class="bg-emerald-700 hover:bg-emerald-800 text-white text-xs sm:text-sm px-3 py-2 rounded-xl flex items-center gap-1.5 cursor-pointer">
+              <i class="fa-regular fa-images"></i> พิมพ์รายงานภาพถ่าย (A4)
+            </button>
+            <button type="button" id="btn-adm-export" class="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs sm:text-sm px-3 py-2 rounded-xl flex items-center gap-1.5 cursor-pointer">
+              <i class="fa-solid fa-file-csv text-[#007a3d]"></i> Export CSV
+            </button>
+            <button type="button" id="btn-adm-settings" class="bg-white border border-green-300 hover:bg-green-50 text-[#007a3d] text-xs sm:text-sm px-3 py-2 rounded-xl flex items-center gap-1.5 cursor-pointer">
+              <i class="fa-solid fa-gear"></i> ตั้งค่า / LINE / โลโก้
+            </button>
+          </div>
+        </div>
+
+        <!-- KPI Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div class="bg-white p-4 rounded-2xl border border-green-100 shadow-sm">
+            <div class="text-xs text-slate-500">อาสาสมัคร/จนท. (รอบที่เลือก)</div>
+            <div id="adm-kpi-vol" class="text-2xl font-bold text-[#007a3d] mt-1">0</div>
+          </div>
+          <div class="bg-white p-4 rounded-2xl border border-green-100 shadow-sm">
+            <div class="text-xs text-slate-500">ผู้ป่วยเยี่ยมบ้านทั้งหมด</div>
+            <div id="adm-kpi-pat" class="text-2xl font-bold text-[#006837] mt-1">0</div>
+          </div>
+          <div class="bg-white p-4 rounded-2xl border border-green-100 shadow-sm">
+            <div class="text-xs text-slate-500">รอเยี่ยมบ้าน</div>
+            <div id="adm-kpi-wait" class="text-2xl font-bold text-amber-600 mt-1">0</div>
+          </div>
+          <div class="bg-white p-4 rounded-2xl border border-green-100 shadow-sm">
+            <div class="text-xs text-slate-500">เยี่ยมบ้านแล้ว</div>
+            <div id="adm-kpi-done" class="text-2xl font-bold text-[#007a3d] mt-1">0</div>
+          </div>
+        </div>
+
+        <!-- Assistance Summary + Annual Charts -->
+        <div class="bg-white rounded-2xl shadow-sm border border-green-100 p-5 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <h3 class="text-base font-semibold text-slate-800 flex items-center gap-2">
+              <i class="fa-solid fa-chart-column text-[#007a3d]"></i>
+              สรุปยอดความต้องการช่วยเหลือ (รอบที่เลือก) และแดชบอร์ดรายปี
+            </h3>
+          </div>
+          <div id="adm-needs-summary" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2.5"></div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+            <div class="border border-slate-100 rounded-xl p-3 bg-slate-50/50">
+              <div class="text-xs font-medium text-slate-600 mb-2">จำนวนผู้ป่วยเยี่ยมบ้านแยก 6 ตำบล (ทั้งปี)</div>
+              <canvas id="chart-subdistrict" height="180"></canvas>
+            </div>
+            <div class="border border-slate-100 rounded-xl p-3 bg-slate-50/50">
+              <div class="text-xs font-medium text-slate-600 mb-2">สัดส่วนกลุ่มเป้าหมายผู้ป่วย (ทั้งปี)</div>
+              <canvas id="chart-group" height="180"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Supplies Tracking -->
+        <div class="bg-white rounded-2xl shadow-sm border border-green-100 p-5">
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <div>
+              <h3 class="text-base font-semibold text-slate-800 flex items-center gap-2">
+                <i class="fa-solid fa-boxes-packing text-[#007a3d]"></i>
+                ติดตามยอดเบิก-จ่ายสิ่งของสนับสนุน (ถุงยังชีพ / แพมเพิส / นมผง)
+              </h3>
+              <p class="text-xs text-slate-500">เปรียบเทียบยอดที่เตรียมลงพื้นที่กับยอดจ่ายจริงในแต่ละรอบ</p>
+            </div>
+            <button type="button" id="btn-adm-add-sup" class="moph-btn text-xs px-3 py-1.5 rounded-lg flex items-center gap-1 cursor-pointer">
+              <i class="fa-solid fa-plus"></i> เพิ่มรายการสิ่งของ
+            </button>
+          </div>
+          <div id="admin-supplies-wrap" class="overflow-x-auto"></div>
+        </div>
+
+        <!-- Admin Leaflet Map (PDPA Protected) -->
+        <div class="bg-white rounded-2xl shadow-sm border border-green-100 p-5">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+            <div>
+              <h3 class="text-base font-semibold text-slate-800 flex items-center gap-2">
+                <i class="fa-solid fa-map-location-dot text-[#007a3d]"></i>
+                แผนที่รวมพิกัดบ้านผู้ป่วยเยี่ยมบ้าน (อ.ท่าสองยาง)
+              </h3>
+              <p class="text-xs text-slate-500">หมุดสีส้ม = รอเยี่ยมบ้าน | หมุดสีเขียว = เยี่ยมแล้ว (คลิกที่หมุดเพื่อดูรายละเอียดและนำทาง Google Maps)</p>
+            </div>
+            <select id="map-sub-filter" class="rounded-xl border border-slate-300 px-3 py-1.5 text-xs sm:text-sm bg-white outline-none">
+              <option value="ALL">ทุกตำบล</option>
+              <option value="แม่ต้าน">ต.แม่ต้าน</option>
+              <option value="แม่อุสุ">ต.แม่อุสุ</option>
+              <option value="แม่หละ">ต.แม่หละ</option>
+              <option value="แม่สอง">ต.แม่สอง</option>
+              <option value="ท่าสองยาง">ต.ท่าสองยาง</option>
+              <option value="แม่วะหลวง">ต.แม่วะหลวง</option>
+            </select>
+          </div>
+          <div id="patient-map"></div>
+          <div id="map-summary-bar" class="mt-2.5 text-xs text-slate-600"></div>
+        </div>
+
+        <!-- Rounds Table -->
+        <div class="bg-white rounded-2xl shadow-sm border border-green-100 p-5">
+          <h3 class="text-base font-semibold text-slate-800 mb-3">ตารางรอบออกหน่วยรายเดือน (รอบละ 2 วัน)</h3>
+          <div id="admin-rounds-wrap" class="overflow-x-auto"></div>
+        </div>
+
+        <!-- Patients Table -->
+        <div class="bg-white rounded-2xl shadow-sm border border-green-100 p-5">
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <h3 class="text-base font-semibold text-slate-800">จัดการรายชื่อผู้ป่วยเยี่ยมบ้าน & อัปเดตรูปภาพ</h3>
+            <button type="button" id="btn-adm-add-pat" class="moph-btn text-xs px-3 py-1.5 rounded-lg flex items-center gap-1 cursor-pointer">
+              <i class="fa-solid fa-plus"></i> เพิ่มรายชื่อผู้ป่วย
+            </button>
+          </div>
+          <div id="admin-patients-wrap" class="overflow-x-auto"></div>
+        </div>
+
+        <!-- Volunteers Table -->
+        <div class="bg-white rounded-2xl shadow-sm border border-green-100 p-5">
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <h3 class="text-base font-semibold text-slate-800">จัดการรายชื่อผู้ร่วมออกหน่วย พอ.สว.</h3>
+            <button type="button" id="btn-adm-add-vol" class="moph-btn text-xs px-3 py-1.5 rounded-lg flex items-center gap-1 cursor-pointer">
+              <i class="fa-solid fa-plus"></i> เพิ่มรายชื่ออาสาสมัคร/จนท.
+            </button>
+          </div>
+          <div id="admin-volunteers-wrap" class="overflow-x-auto"></div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="bg-white border-t border-green-100 py-4 text-center text-xs text-slate-500">
+    ระบบสนับสนุนงานออกหน่วยแพทย์อาสา พอ.สว. อำเภอท่าสองยาง จังหวัดตาก
+  </footer>
+
+  <div id="print-area"></div>
+
+  <script>
+    var APP_DATA = { appTitle: 'ระบบลงทะเบียนออกหน่วยแพทย์อาสา พอ.สว. และเยี่ยมบ้าน', orgName: 'สำนักงานสาธารณสุขอำเภอท่าสองยาง จังหวัดตาก', logoUrl: '', positionOptions: 'แพทย์\nทันตแพทย์\nเภสัชกร\nพยาบาลวิชาชีพ\nนักวิชาการสาธารณสุข\nเจ้าพนักงานสาธารณสุข\nเจ้าพนักงานทันตสาธารณสุข\nแพทย์แผนไทย\nนักกายภาพบำบัด\nอาสาสมัคร พอ.สว.\nอสม.\nพนักงานขับรถ / สนับสนุน', affiliationOptions: 'สสอ.ท่าสองยาง\nรพ.ท่าสองยาง\nรพ.สต.บ้านแม่ต้าน\nรพ.สต.บ้านแม่อุสุ\nรพ.สต.บ้านแม่หละ\nรพ.สต.บ้านแม่สอง\nรพ.สต.บ้านแม่วะหลวง\nรพ.สต.บ้านหนองบัว\nรพ.สต.บ้านปวงคำ', rounds: [], volunteers: [], patients: [] };
+    var ADMIN_DATA = null;
+    var ADMIN_PASSCODE = '';
+    var DIR_MODE = 'vol';
+    var LEAFLET_MAP = null;
+    var LEAFLET_LAYER = null;
+    var CHART_SUB = null;
+    var CHART_GRP = null;
+
+    var DEFAULT_GAS_API_URL = 'https://script.google.com/macros/s/AKfycbxArwxigN7ImXL6BYGxVQ6jx8mKTZIX-b7g933ucqyjlowyYuW3c2YZi89FF4pTOvwB/exec';
+    var PWA_API_KEY = 'pmmv_gas_api_url_v1';
+    var PWA_CACHE_DATA_KEY = 'pmmv_cached_init_v1';
+    var DEFERRED_INSTALL_PROMPT = null;
+
+    function getGasApiUrl() {
+      try {
+        var qsUrl = new URLSearchParams(window.location.search).get('api');
+        if (qsUrl && qsUrl.indexOf('http') === 0) {
+          localStorage.setItem(PWA_API_KEY, qsUrl);
+          return qsUrl;
+        }
+        return localStorage.getItem(PWA_API_KEY) || DEFAULT_GAS_API_URL || '';
+      } catch (e) {
+        return DEFAULT_GAS_API_URL || '';
+      }
+    }
+
+    function callBackend(action, payload, onSuccess, onFailure) {
+      if (hasGasBackend()) {
+        var runner = google.script.run.withSuccessHandler(onSuccess).withFailureHandler(onFailure || function(){});
+        if (action === 'getInitialData') return runner.getInitialData();
+        if (action === 'registerVolunteer') return runner.registerVolunteer(payload);
+        if (action === 'registerPatient') return runner.registerPatient(payload);
+        if (action === 'searchMemberRegistry') return runner.searchMemberRegistry(payload.query);
+        if (action === 'getAdminData') return runner.getAdminData(payload.passcode);
+        if (action === 'saveRound') return runner.saveRound(payload.passcode, payload.roundObj);
+        if (action === 'saveVolunteerAdmin') return runner.saveVolunteerAdmin(payload.passcode, payload.obj);
+        if (action === 'deleteVolunteerAdmin') return runner.deleteVolunteerAdmin(payload.passcode, payload.regId);
+        if (action === 'savePatientAdmin') return runner.savePatientAdmin(payload.passcode, payload.obj);
+        if (action === 'deletePatientAdmin') return runner.deletePatientAdmin(payload.passcode, payload.patientId);
+        if (action === 'updatePatientVisit') return runner.updatePatientVisit(payload.passcode, payload.patientId, payload.visitStatus, payload.visitNote, payload.images);
+        if (action === 'sendRoundSummaryToLine') return runner.sendRoundSummaryToLine(payload.passcode, payload.roundId);
+        if (action === 'saveSupplyAdmin') return runner.saveSupplyAdmin(payload.passcode, payload.obj);
+        if (action === 'deleteSupplyAdmin') return runner.deleteSupplyAdmin(payload.passcode, payload.supplyId);
+        if (action === 'saveSettings') return runner.saveSettings(payload.passcode, payload.newSettings);
+      }
+      var apiUrl = getGasApiUrl();
+      if (!apiUrl) {
+        if (onFailure) onFailure(new Error('ยังไม่ได้ตั้งค่า URL ของ Google Apps Script API (กดปุ่ม ⚙️ เชื่อมต่อ API มุมขวาบน)'));
+        return;
+      }
+      fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: action, payload: payload || {} })
+      })
+      .then(function(r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function(data) {
+        if (onSuccess) onSuccess(data);
+      })
+      .catch(function(err) {
+        if (onFailure) onFailure(err);
+      });
+    }
+
+    function hasAnyBackend() {
+      return hasGasBackend() || !!getGasApiUrl();
+    }
+
+    function openApiConfigModal() {
+      var cur = getGasApiUrl();
+      Swal.fire({
+        title: 'เชื่อมต่อ Google Apps Script API',
+        html:
+          '<div class="text-left text-xs space-y-2">' +
+          '<p class="text-slate-600">นำ URL จากการ Deploy Web App (ลงท้ายด้วย <code>/exec</code>) มาวางเพื่อเชื่อมต่อ PWA กับ Google Sheet</p>' +
+          '<input id="sw-api-url" class="swal2-input !m-0 !w-full !text-xs" placeholder="https://script.google.com/macros/s/.../exec" value="' + escapeHtml(cur) + '">' +
+          '</div>',
+        showCancelButton: true,
+        confirmButtonText: 'บันทึกและโหลดข้อมูล',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#007a3d',
+        preConfirm: function() {
+          return document.getElementById('sw-api-url').value.trim();
+        }
+      }).then(function(r) {
+        if (r.isConfirmed) {
+          localStorage.setItem(PWA_API_KEY, r.value || '');
+          loadData();
+          Swal.fire({ icon: 'success', title: 'บันทึกการเชื่อมต่อแล้ว', timer: 1800, showConfirmButton: false });
+        }
+      });
+    }
+
+    if ('serviceWorker' in navigator && !hasGasBackend()) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('./sw.js').catch(function(err) {
+          console.log('SW register skipped:', err);
+        });
+      });
+    }
+
+    window.addEventListener('beforeinstallprompt', function(e) {
+      e.preventDefault();
+      DEFERRED_INSTALL_PROMPT = e;
+      var btn = document.getElementById('btn-pwa-install');
+      if (btn) btn.classList.remove('hidden');
+    });
+
+    function hasGasBackend() {
+      return typeof google !== 'undefined' && google.script && google.script.run;
+    }
+
+    function notify(icon, title, text) {
+      if (typeof Swal !== 'undefined') {
+        return Swal.fire({ icon: icon, title: title, text: text, confirmButtonColor: '#007a3d' });
+      }
+      alert(title + (text ? '\n' + text : ''));
+    }
+
+    function bindEvents() {
+      var tabs = document.querySelectorAll('.nav-tab-btn');
+      for (var i = 0; i < tabs.length; i++) {
+        (function(btn) {
+          btn.addEventListener('click', function() {
+            switchTab(btn.getAttribute('data-tab'));
+          });
+        })(tabs[i]);
+      }
+      document.getElementById('form-volunteer').addEventListener('submit', submitVolunteer);
+      document.getElementById('form-patient').addEventListener('submit', submitPatient);
+      document.getElementById('btn-get-gps').addEventListener('click', getCurrentLocation);
+      document.getElementById('btn-save-offline-pat').addEventListener('click', savePatientOfflineManual);
+      document.getElementById('btn-save-offline-vol').addEventListener('click', saveVolunteerOfflineManual);
+      document.getElementById('btn-sync-vol-offline').addEventListener('click', syncVolOfflineQueue);
+      document.getElementById('btn-sync-offline').addEventListener('click', syncOfflineQueue);
+      document.getElementById('pat-photos').addEventListener('change', handlePatPhotoSelect);
+      document.getElementById('btn-clear-pat-photos').addEventListener('click', clearPatPhotos);
+      initOfflineDraftAndListeners();
+      var cfgBtn = document.getElementById('btn-pwa-api-cfg');
+      if (cfgBtn) { if (hasGasBackend()) cfgBtn.classList.add('hidden'); else cfgBtn.addEventListener('click', openApiConfigModal); }
+      var instBtn = document.getElementById('btn-pwa-install');
+      if (instBtn) instBtn.addEventListener('click', function() { if (!DEFERRED_INSTALL_PROMPT) return; DEFERRED_INSTALL_PROMPT.prompt(); DEFERRED_INSTALL_PROMPT.userChoice.then(function() { DEFERRED_INSTALL_PROMPT = null; instBtn.classList.add('hidden'); }); });
+      document.getElementById('dir-round-filter').addEventListener('change', renderDirectory);
+      document.getElementById('dir-search').addEventListener('input', renderDirectory);
+      document.getElementById('form-member-search').addEventListener('submit', searchMember);
+      setupSearchableCombo('vol-position', 'vol-position-dropdown', 'btn-toggle-vol-position', function() { return parseOptionList(APP_DATA.positionOptions); });
+      setupSearchableCombo('vol-affiliation', 'vol-affiliation-dropdown', 'btn-toggle-vol-affiliation', function() { return parseOptionList(APP_DATA.affiliationOptions); });
+
+      document.getElementById('map-sub-filter').addEventListener('change', renderPatientMap);
+      document.getElementById('form-admin-login').addEventListener('submit', loginAdmin);
+      document.getElementById('admin-round-filter').addEventListener('change', renderAdminTables);
+      document.getElementById('btn-adm-add-round').addEventListener('click', function() { openRoundModal(null); });
+      document.getElementById('btn-adm-send-line').addEventListener('click', sendSummaryLineNow);
+      document.getElementById('btn-adm-add-pat').addEventListener('click', function() { openPatientModal(null); });
+      document.getElementById('btn-adm-add-vol').addEventListener('click', function() { openVolunteerModal(null); });
+      document.getElementById('btn-adm-print-vol').addEventListener('click', function() { printA4Report('volunteers'); });
+      document.getElementById('btn-adm-print-pat').addEventListener('click', function() { printA4Report('patients'); });
+      document.getElementById('btn-adm-print-photos').addEventListener('click', function() { printA4Report('photos'); });
+      document.getElementById('btn-adm-add-sup').addEventListener('click', function() { openSupplyModal(null); });
+      document.getElementById('btn-adm-export').addEventListener('click', function() { exportCsv('patients'); });
+      document.getElementById('btn-adm-settings').addEventListener('click', openSettingsModal);
+    }
+
+    function resolveInitialTab() {
+      var validTabs = ['volunteer', 'patient', 'directory', 'member', 'admin'];
+      function applyTabFromParams(params) {
+        if (!params) return;
+        if (params.tab === 'map') params.tab = 'admin';
+        var tab = params.tab || '';
+        if (!tab && params['liff.state']) {
+          var st = decodeURIComponent(String(params['liff.state']));
+          var m = st.match(/[?&]?tab=([a-zA-Z]+)/);
+          if (m) tab = m[1];
+        }
+        if (validTabs.indexOf(tab) !== -1) {
+          switchTab(tab);
+        }
+      }
+      if (typeof google !== 'undefined' && google.script && google.script.url) {
+        google.script.url.getLocation(function(loc) {
+          applyTabFromParams(loc && loc.parameter ? loc.parameter : null);
+        });
+      } else if (window.location && window.location.search) {
+        var qs = {};
+        window.location.search.replace(/^\?/, '').split('&').forEach(function(pair) {
+          var kv = pair.split('=');
+          if (kv[0]) qs[decodeURIComponent(kv[0])] = decodeURIComponent(kv[1] || '');
+        });
+        applyTabFromParams(qs);
+      }
+    }
+
+    function initLiffSafe(liffId) {
+      if (!liffId || typeof liff === 'undefined') return;
+      try {
+        liff.init({ liffId: liffId }).catch(function(err) {
+          console.log('LIFF init skipped:', err);
+        });
+      } catch (e) {
+        console.log('LIFF init error:', e);
+      }
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function() {
+        bindEvents();
+        resolveInitialTab();
+        loadData();
+      });
+    } else {
+      bindEvents();
+      resolveInitialTab();
+      loadData();
+    }
+
+    function toThaiShortDate(dateStr) {
+      if (!dateStr) return '';
+      var parts = String(dateStr).split('-');
+      if (parts.length !== 3) return dateStr;
+      var y = parseInt(parts[0], 10);
+      if (y < 2400) y += 543;
+      return parts[2] + '/' + parts[1] + '/' + y;
+    }
+
+    function formatShortThaiRange(r) {
+      if (r.Start_Date && r.End_Date) {
+        return toThaiShortDate(r.Start_Date) + '-' + toThaiShortDate(r.End_Date);
+      }
+      return r.Unit_Date ? toThaiShortDate(r.Unit_Date) : '';
+    }
+
+    function formatDateRange(r) {
+      if (r.Start_Date && r.End_Date) {
+        return 'ระหว่างวันที่ ' + r.Start_Date + ' ถึง ' + r.End_Date;
+      }
+      return r.Unit_Date ? ('วันที่ ' + r.Unit_Date) : '';
+    }
+
+    function formatThaiDateRange(r) {
+      if (!r || !r.Start_Date || !r.End_Date) return '';
+      var months = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+      var s = r.Start_Date.split('-');
+      var e = r.End_Date.split('-');
+      if (s.length !== 3 || e.length !== 3) return formatDateRange(r);
+      var sy = parseInt(s[0], 10);
+      var ey = parseInt(e[0], 10);
+      if (sy < 2400) sy += 543;
+      if (ey < 2400) ey += 543;
+      var sm = months[parseInt(s[1], 10) - 1] || s[1];
+      var em = months[parseInt(e[1], 10) - 1] || e[1];
+      var sd = parseInt(s[2], 10);
+      var ed = parseInt(e[2], 10);
+      if (s[1] === e[1] && sy === ey) {
+        return 'ระหว่างวันที่ ' + sd + '-' + ed + ' ' + sm + ' ' + sy;
+      }
+      return 'ระหว่างวันที่ ' + sd + ' ' + sm + ' ' + sy + ' - ' + ed + ' ' + em + ' ' + ey;
+    }
+
+    function getCurrentLocation() {
+      var btn = document.getElementById('btn-get-gps');
+      if (!navigator.geolocation) {
+        notify('warning', 'ไม่รองรับ GPS', 'เบราว์เซอร์หรืออุปกรณ์นี้ไม่รองรับการดึงพิกัดอัตโนมัติ');
+        return;
+      }
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังค้นหาพิกัด...';
+
+      navigator.geolocation.getCurrentPosition(
+        function(pos) {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fa-solid fa-crosshairs"></i> <span>ดึงพิกัดอัตโนมัติจากตำแหน่งปัจจุบัน</span>';
+          var lat = pos.coords.latitude.toFixed(6);
+          var lng = pos.coords.longitude.toFixed(6);
+          document.getElementById('pat-gps').value = lat + ', ' + lng;
+          document.getElementById('pat-map').value = 'https://maps.google.com/?q=' + lat + ',' + lng;
+          savePatientDraft();
+          if (typeof Swal !== 'undefined') {
+            Swal.fire({
+              toast: true,
+              position: 'top-end',
+              icon: 'success',
+              title: 'ดึงพิกัดสำเร็จ (' + lat + ', ' + lng + ')',
+              showConfirmButton: false,
+              timer: 2500
+            });
+          }
+        },
+        function() {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fa-solid fa-crosshairs"></i> <span>ดึงพิกัดอัตโนมัติจากตำแหน่งปัจจุบัน</span>';
+          notify('warning', 'ไม่สามารถดึงพิกัดได้', 'กรุณาเปิดสิทธิ์ Location / GPS บนอุปกรณ์ หรือกรอกพิกัดด้วยตนเอง');
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    }
+
+    function loadData() {
+      try {
+        var cachedRaw = localStorage.getItem(PWA_CACHE_DATA_KEY);
+        if (cachedRaw) {
+          APP_DATA = JSON.parse(cachedRaw);
+          renderHeaderAndBanner();
+          populateRoundSelects();
+          renderDirectory();
+        }
+      } catch (e) {}
+
+      if (!hasAnyBackend()) {
+        if (!localStorage.getItem(PWA_CACHE_DATA_KEY)) {
+          document.getElementById('banner-round-title').textContent = 'กรุณากดปุ่ม ⚙️ เชื่อมต่อ API มุมขวาบน';
+          document.getElementById('banner-round-detail').textContent = 'วางลิงก์ Web App URL (.../exec) ของ Google Apps Script เพื่อเชื่อมต่อข้อมูล';
+        }
+        populateRoundSelects();
+        renderDirectory();
+        return;
+      }
+
+      if (!navigator.onLine) {
+        return;
+      }
+
+      callBackend('getInitialData', {}, function(data) {
+        if (data && data.rounds) {
+          APP_DATA = data;
+          try { localStorage.setItem(PWA_CACHE_DATA_KEY, JSON.stringify(data)); } catch (e) {}
+          if (data.liffId) initLiffSafe(data.liffId);
+        }
+        renderHeaderAndBanner();
+        populateRoundSelects();
+        renderDirectory();
+      }, function(err) {
+        if (!localStorage.getItem(PWA_CACHE_DATA_KEY)) {
+          document.getElementById('banner-round-title').textContent = 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้';
+          document.getElementById('banner-round-detail').textContent = formatGasError(err);
+        }
+      });
+    }
+
+    function renderHeaderAndBanner() {
+      if (APP_DATA.appTitle) {
+        document.getElementById('header-app-title').textContent = APP_DATA.appTitle;
+        document.title = APP_DATA.appTitle;
+      }
+      if (APP_DATA.orgName) {
+        document.getElementById('header-org-name').textContent = APP_DATA.orgName;
+      }
+      var logoWrap = document.getElementById('header-logo-wrap');
+      if (APP_DATA.logoUrl) {
+        logoWrap.innerHTML = '<img src="' + escapeHtml(APP_DATA.logoUrl) + '" alt="Logo" class="w-full h-full object-contain bg-white p-1" onerror="this.parentElement.innerHTML=\'<i class=\\\'fa-solid fa-kit-medical text-2xl text-white\\\'></i>\'">';
+      } else {
+        logoWrap.innerHTML = '<i class="fa-solid fa-kit-medical text-2xl text-white"></i>';
+      }
+
+      var openRound = APP_DATA.rounds.find(function(r) { return r.Status === 'เปิดรับลงทะเบียน'; }) || APP_DATA.rounds[0];
+      if (openRound) {
+        document.getElementById('banner-round-title').textContent =
+          'รอบที่ ' + openRound.Round_No + ' (' + formatShortThaiRange(openRound) + ') ' + openRound.Location;
+        document.getElementById('banner-round-detail').textContent =
+          'พื้นที่: ต.' + openRound.Subdistrict + ' — ' + openRound.Location;
+        var vCount = APP_DATA.volunteers.filter(function(v) { return v.Round_ID === openRound.Round_ID; }).length;
+        var pCount = (APP_DATA.patientCountByRound && APP_DATA.patientCountByRound[openRound.Round_ID]) ? APP_DATA.patientCountByRound[openRound.Round_ID] : APP_DATA.patients.filter(function(p) { return p.Round_ID === openRound.Round_ID; }).length;
+        document.getElementById('stat-vol-count').textContent = vCount;
+        document.getElementById('stat-pat-count').textContent = pCount;
+      } else {
+        document.getElementById('banner-round-title').textContent = 'ยังไม่มีรอบออกหน่วยที่เปิดรับลงทะเบียน';
+        document.getElementById('banner-round-detail').textContent = 'กรุณาติดต่อผู้ดูแลระบบเพื่อเพิ่มรอบประจำเดือน';
+      }
+    }
+
+    function populateRoundSelects() {
+      var openRounds = APP_DATA.rounds.filter(function(r) { return r.Status === 'เปิดรับลงทะเบียน'; });
+      var formOptions = openRounds.length
+        ? openRounds.map(function(r) {
+            return '<option value="' + escapeHtml(r.Round_ID) + '">รอบที่ ' + escapeHtml(r.Round_No) + ' (' + escapeHtml(formatShortThaiRange(r)) + ') ' + escapeHtml(r.Location) + '</option>';
+          }).join('')
+        : '<option value="">-- ขณะนี้ปิดรับลงทะเบียนชั่วคราว --</option>';
+
+      document.getElementById('vol-round').innerHTML = formOptions;
+      document.getElementById('pat-round').innerHTML = formOptions;
+
+      var allOptions = '<option value="ALL">ทุกรอบออกหน่วย</option>' +
+        APP_DATA.rounds.map(function(r) {
+          return '<option value="' + escapeHtml(r.Round_ID) + '">รอบที่ ' + escapeHtml(r.Round_No) + ' (' + escapeHtml(formatShortThaiRange(r)) + ') ' + escapeHtml(r.Location) + '</option>';
+        }).join('');
+      document.getElementById('dir-round-filter').innerHTML = allOptions;
+
+      var openDefault = openRounds[0];
+      if (openDefault) {
+        document.getElementById('dir-round-filter').value = openDefault.Round_ID;
+      }
+    }
+
+    function switchTab(tab) {
+      var tabs = ['volunteer', 'patient', 'directory', 'member', 'admin'];
+      for (var i = 0; i < tabs.length; i++) {
+        var t = tabs[i];
+        document.getElementById('sec-' + t).classList.toggle('hidden', t !== tab);
+        var btn = document.getElementById('tab-btn-' + t);
+        btn.className = 'nav-tab-btn ' + (t === tab ? 'tab-active' : 'tab-inactive') +
+          ' py-2.5 px-3 rounded-xl text-sm font-medium transition flex items-center justify-center gap-2 cursor-pointer';
+      }
+      if (tab === 'directory') renderDirectory();
+      if (tab === 'admin' && ADMIN_DATA) renderPatientMap();
+    }
+
+    function renderPatientMap() {
+      if (typeof L === 'undefined') {
+        document.getElementById('map-summary-bar').textContent = 'ไม่สามารถโหลดไลบรารีแผนที่ได้';
+        return;
+      }
+      if (!LEAFLET_MAP) {
+        LEAFLET_MAP = L.map('patient-map').setView([17.227, 98.227], 11);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(LEAFLET_MAP);
+        LEAFLET_LAYER = L.layerGroup().addTo(LEAFLET_MAP);
+      }
+      setTimeout(function() { LEAFLET_MAP.invalidateSize(); }, 200);
+      LEAFLET_LAYER.clearLayers();
+
+      if (!ADMIN_DATA || !ADMIN_DATA.patients) return;
+      var roundId = document.getElementById('admin-round-filter').value;
+      var sub = document.getElementById('map-sub-filter').value;
+      var plist = ADMIN_DATA.patients.filter(function(p) {
+        var matchR = !roundId || roundId === 'ALL' || p.Round_ID === roundId;
+        var matchS = !sub || sub === 'ALL' || p.Subdistrict === sub;
+        return matchR && matchS;
+      });
+
+      var plotted = 0;
+      var bounds = [];
+      plist.forEach(function(p) {
+        var coords = parseCoords(p.GPS_Coords, p.Map_Link);
+        if (!coords) return;
+        plotted++;
+        bounds.push(coords);
+        var isDone = p.Visit_Status === 'เยี่ยมแล้ว';
+        var marker = L.circleMarker(coords, {
+          radius: 9,
+          fillColor: isDone ? '#007a3d' : '#f59e0b',
+          color: '#ffffff',
+          weight: 2,
+          opacity: 1,
+          fillOpacity: 0.9
+        });
+        var navUrl = p.Map_Link || ('https://maps.google.com/?q=' + coords[0] + ',' + coords[1]);
+        var popupHtml =
+          '<div style="font-family:Kanit,sans-serif; min-width:210px; font-size:12px;">' +
+          '<div style="font-weight:600; font-size:13px; color:#006837;">' + escapeHtml(p.Patient_Name) + ' (' + escapeHtml(p.Age) + ' ปี)</div>' +
+          '<div style="color:#475569; margin:2px 0;">' + escapeHtml(p.Address_Village) + ' ต.' + escapeHtml(p.Subdistrict) + '</div>' +
+          '<div><b>ปัญหา/โรค:</b> ' + escapeHtml(p.Patient_Group) + ' ' + escapeHtml(p.Underlying_Disease) + '</div>' +
+          '<div><b>ความช่วยเหลือ:</b> ' + escapeHtml(p.Assistance_Needs) + '</div>' +
+          '<div style="margin-top:6px;"><a href="' + escapeHtml(navUrl) + '" target="_blank" style="display:inline-block; background:#007a3d; color:#fff; padding:4px 10px; border-radius:6px; text-decoration:none; font-size:11px;">เปิดนำทาง Google Maps</a></div>' +
+          '</div>';
+        marker.bindPopup(popupHtml);
+        marker.addTo(LEAFLET_LAYER);
+      });
+
+      if (bounds.length > 0) {
+        LEAFLET_MAP.fitBounds(bounds, { padding: [30, 30], maxZoom: 15 });
+      } else {
+        LEAFLET_MAP.setView([17.227, 98.227], 11);
+      }
+      document.getElementById('map-summary-bar').innerHTML =
+        '<span>แสดงพิกัดบนแผนที่ <b>' + plotted + '</b> จากผู้ป่วยทั้งหมด <b>' + plist.length + '</b> ราย (เฉพาะรายที่ระบุพิกัด GPS)</span>';
+    }
+
+    function parseCoords(gpsStr, mapUrl) {
+      var s = String(gpsStr || '').trim();
+      var m = s.match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/);
+      if (m) return [parseFloat(m[1]), parseFloat(m[2])];
+      var u = String(mapUrl || '').trim();
+      var m2 = u.match(/[?&]q=(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/);
+      if (m2) return [parseFloat(m2[1]), parseFloat(m2[2])];
+      return null;
+    }
+
+    var VOL_QUEUE_KEY = 'pmmv_vol_offline_queue_v1';
+
+    function getVolOfflineQueue() {
+      try {
+        return JSON.parse(localStorage.getItem(VOL_QUEUE_KEY) || '[]');
+      } catch (err) {
+        return [];
+      }
+    }
+
+    function setVolOfflineQueue(arr) {
+      localStorage.setItem(VOL_QUEUE_KEY, JSON.stringify(arr || []));
+      renderVolOfflineQueue();
+    }
+
+    function renderVolOfflineQueue() {
+      var q = getVolOfflineQueue();
+      var panel = document.getElementById('vol-offline-queue-panel');
+      var cnt = document.getElementById('vol-offline-queue-count');
+      var list = document.getElementById('vol-offline-queue-list');
+      if (!panel || !cnt || !list) return;
+      if (!q.length) {
+        panel.classList.add('hidden');
+        cnt.textContent = '0';
+        list.innerHTML = '';
+        return;
+      }
+      panel.classList.remove('hidden');
+      cnt.textContent = String(q.length);
+      list.innerHTML = q.map(function(item, idx) {
+        var v = item.payload || {};
+        return '<div class="bg-white rounded-xl border border-amber-200 px-3 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">' +
+          '<div>' +
+            '<div class="font-semibold text-slate-800">' + (idx + 1) + '. ' + escapeHtml((v.prefix || '') + (v.fullName || '-')) + ' <span class="text-slate-500 font-normal">(' + escapeHtml(v.position || '-') + ')</span></div>' +
+            '<div class="text-[11px] text-slate-500 mt-0.5">🕒 ' + escapeHtml(item.savedAt || '') + ' • 🏥 ' + escapeHtml(v.affiliation || '-') + '</div>' +
+          '</div>' +
+          '<button type="button" onclick="deleteVolOfflineItem(' + idx + ')" class="text-rose-600 hover:bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200 text-[11px] font-medium cursor-pointer">ลบ</button>' +
+        '</div>';
+      }).join('');
+    }
+
+    function deleteVolOfflineItem(idx) {
+      var q = getVolOfflineQueue();
+      q.splice(idx, 1);
+      setVolOfflineQueue(q);
+    }
+
+    function buildVolunteerPayload() {
+      return {
+        roundId: document.getElementById('vol-round').value,
+        prefix: document.getElementById('vol-prefix').value,
+        fullName: document.getElementById('vol-fullname').value.trim(),
+        position: document.getElementById('vol-position').value.trim(),
+        affiliation: document.getElementById('vol-affiliation').value.trim(),
+        phone: document.getElementById('vol-phone').value.trim(),
+        dutyTeam: document.getElementById('vol-team').value
+      };
+    }
+
+    function pushVolToOfflineQueue(payload) {
+      try {
+        var q = getVolOfflineQueue();
+        var nowStr = new Date().toLocaleString('th-TH');
+        q.push({ savedAt: nowStr, payload: payload });
+        setVolOfflineQueue(q);
+        document.getElementById('form-volunteer').reset();
+        if (typeof Swal !== 'undefined') {
+          Swal.fire({
+            icon: 'success',
+            title: 'บันทึกออฟไลน์ลงเครื่องแล้ว 💾',
+            html: '<div class="text-sm">เก็บข้อมูลลงทะเบียนของ <b>' + escapeHtml(payload.prefix + payload.fullName) + '</b> ไว้ในเครื่องเรียบร้อย<br><span class="text-xs text-slate-500">เมื่อกลับมามีสัญญาณอินเทอร์เน็ต กดปุ่ม <b>ซิงค์ข้อมูลขึ้นระบบ</b> ได้เลยครับ</span></div>',
+            confirmButtonColor: '#007a3d'
+          });
+        }
+      } catch (err) {
+        notify('error', 'ไม่สามารถบันทึกลงเครื่องได้', err.message);
+      }
+    }
+
+    function saveVolunteerOfflineManual() {
+      var payload = buildVolunteerPayload();
+      if (!payload.roundId) {
+        notify('warning', 'แจ้งเตือน', 'กรุณาเลือกรอบออกหน่วยก่อน');
+        return;
+      }
+      if (!payload.fullName) {
+        notify('warning', 'กรุณากรอกชื่อ - นามสกุล', 'ระบุอย่างน้อย ชื่อ-นามสกุล เพื่อบันทึกแบบออฟไลน์');
+        return;
+      }
+      pushVolToOfflineQueue(payload);
+    }
+
+    function syncVolOfflineQueue() {
+      if (!navigator.onLine) {
+        notify('warning', 'ยังไม่มีสัญญาณอินเทอร์เน็ต 🟠', 'กรุณารอให้เชื่อมต่ออินเทอร์เน็ตก่อนแล้วกดซิงค์อีกครั้งครับ');
+        return;
+      }
+      if (!hasAnyBackend()) {
+        notify('info', 'ต้องใช้งานผ่าน Web App', 'กรุณา Deploy โค้ดบน Google Apps Script ก่อนซิงค์ข้อมูล');
+        return;
+      }
+      var q = getVolOfflineQueue();
+      if (!q.length) return;
+
+      var btn = document.getElementById('btn-sync-vol-offline');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>กำลังซิงค์...</span>';
+
+      var syncedCount = 0;
+      var failedList = [];
+
+      function nextItem() {
+        var currentQueue = getVolOfflineQueue();
+        if (currentQueue.length === 0) {
+          btn.disabled = false;
+          btn.innerHTML = '<span>🔄</span> <span>ซิงค์ข้อมูลขึ้นระบบ</span>';
+          if (failedList.length > 0) {
+            setVolOfflineQueue(failedList);
+            Swal.fire({
+              icon: 'warning',
+              title: 'ซิงค์สำเร็จ ' + syncedCount + ' รายการ',
+              text: 'มีข้อมูลค้างส่ง ' + failedList.length + ' รายการที่ไม่สำเร็จ กรุณาตรวจสอบหรือลองใหม่อีกครั้ง',
+              confirmButtonColor: '#007a3d'
+            });
+          } else {
+            Swal.fire({
+              icon: 'success',
+              title: 'ซิงค์ขึ้นระบบครบแล้ว! 🎉',
+              text: 'ส่งรายชื่อลงทะเบียนทั้งหมด ' + syncedCount + ' รายการขึ้น Google Sheet เรียบร้อยแล้ว',
+              confirmButtonColor: '#007a3d'
+            });
+          }
+          loadData();
+          return;
+        }
+        var item = currentQueue[0];
+        callBackend('registerVolunteer', item.payload, function(res) {
+          var remaining = getVolOfflineQueue();
+          remaining.shift();
+          setVolOfflineQueue(remaining);
+          if (res && res.success) { syncedCount++; } else { failedList.push(item); }
+          nextItem();
+        }, function() {
+          var remaining = getVolOfflineQueue();
+          remaining.shift();
+          setVolOfflineQueue(remaining);
+          failedList.push(item);
+          nextItem();
+        });
+      }
+
+      nextItem();
+    }
+
+    function submitVolunteer(e) {
+      e.preventDefault();
+      var payload = buildVolunteerPayload();
+      if (!payload.roundId) {
+        notify('warning', 'แจ้งเตือน', 'ยังไม่มีรอบออกหน่วยที่เปิดรับลงทะเบียน');
+        return;
+      }
+
+      if (!navigator.onLine) {
+        pushVolToOfflineQueue(payload);
+        return;
+      }
+
+      if (!hasAnyBackend()) {
+        notify('info', 'ต้องใช้งานผ่าน Web App', 'กรุณา Deploy โค้ดนี้บน Google Apps Script ก่อนใช้งานบันทึกข้อมูล');
+        return;
+      }
+
+      var btn = document.getElementById('btn-submit-vol');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึก...';
+
+      callBackend('registerVolunteer', payload, function(res) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> <span>ยืนยันลงทะเบียนออกหน่วย</span>';
+        if (res && res.success) {
+          Swal.fire({
+            icon: 'success',
+            title: 'ลงทะเบียนสำเร็จ!',
+            html: '<div class="text-sm">รหัสลงทะเบียน: <b class="text-[#007a3d]">' + escapeHtml(res.regId) + '</b><br>' + escapeHtml(res.roundLabel) + '</div>',
+            confirmButtonColor: '#007a3d'
+          });
+          document.getElementById('form-volunteer').reset();
+          loadData();
+        } else {
+          notify('warning', 'ไม่สามารถลงทะเบียนได้', (res && res.message) || 'เกิดข้อผิดพลาด');
+        }
+      }, function(err) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> <span>ยืนยันลงทะเบียนออกหน่วย</span>';
+        if (typeof Swal !== 'undefined') {
+          Swal.fire({
+            icon: 'warning',
+            title: 'ส่งข้อมูลไม่สำเร็จ (สัญญาณอาจขัดข้อง)',
+            text: 'ต้องการบันทึกรายชื่อนี้เก็บไว้ในเครื่องแบบออฟไลน์เพื่อรอซิงค์ภายหลังหรือไม่? (' + formatGasError(err) + ')',
+            showCancelButton: true,
+            confirmButtonText: '💾 บันทึกลงเครื่องไว้ก่อน',
+            cancelButtonText: 'ยกเลิก',
+            confirmButtonColor: '#007a3d'
+          }).then(function(r) {
+            if (r.isConfirmed) pushVolToOfflineQueue(payload);
+          });
+        } else {
+          notify('error', 'เกิดข้อผิดพลาด', formatGasError(err));
+        }
+      });
+    }
+
+    var PAT_DRAFT_KEY = 'pmmv_patient_draft_v1';
+    var PAT_QUEUE_KEY = 'pmmv_offline_queue_v1';
+    var PAT_SELECTED_IMAGES = [];
+    var PAT_DRAFT_FIELD_IDS = [
+      'pat-round', 'pat-name', 'pat-age', 'pat-phone', 'pat-cid',
+      'pat-subdistrict', 'pat-address', 'pat-gps', 'pat-map', 'pat-group',
+      'pat-disease', 'pat-hosp-status', 'pat-hosp-detail', 'pat-caregiver',
+      'pat-assistance', 'pat-reporter', 'pat-agency'
+    ];
+
+    function updateNetworkBadge() {
+      var badges = [
+        document.getElementById('net-status-badge'),
+        document.getElementById('vol-net-status-badge')
+      ];
+      badges.forEach(function(badge) {
+        if (!badge) return;
+        if (navigator.onLine) {
+          badge.className = 'text-xs font-medium px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200';
+          badge.textContent = '🟢 ออนไลน์';
+        } else {
+          badge.className = 'text-xs font-medium px-3 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-300';
+          badge.textContent = '🟠 ออฟไลน์ (บันทึกลงเครื่องได้)';
+        }
+      });
+    }
+
+    function savePatientDraft() {
+      try {
+        var data = {};
+        var hasContent = false;
+        PAT_DRAFT_FIELD_IDS.forEach(function(id) {
+          var el = document.getElementById(id);
+          if (el) {
+            data[id] = el.value;
+            if (id !== 'pat-round' && id !== 'pat-group' && id !== 'pat-hosp-status' && String(el.value || '').trim() !== '') {
+              hasContent = true;
+            }
+          }
+        });
+        if (hasContent) {
+          localStorage.setItem(PAT_DRAFT_KEY, JSON.stringify(data));
+          var b = document.getElementById('draft-status-badge');
+          if (b) b.classList.remove('hidden');
+        }
+      } catch (err) {}
+    }
+
+    function restorePatientDraft() {
+      try {
+        var raw = localStorage.getItem(PAT_DRAFT_KEY);
+        if (!raw) return;
+        var data = JSON.parse(raw);
+        PAT_DRAFT_FIELD_IDS.forEach(function(id) {
+          var el = document.getElementById(id);
+          if (el && data[id] !== undefined && data[id] !== '') {
+            el.value = data[id];
+          }
+        });
+        var b = document.getElementById('draft-status-badge');
+        if (b) b.classList.remove('hidden');
+      } catch (err) {}
+    }
+
+    function clearPatientDraft() {
+      try {
+        localStorage.removeItem(PAT_DRAFT_KEY);
+        var b = document.getElementById('draft-status-badge');
+        if (b) b.classList.add('hidden');
+      } catch (err) {}
+    }
+
+    function clearPatPhotos() {
+      PAT_SELECTED_IMAGES = [];
+      var inp = document.getElementById('pat-photos');
+      if (inp) inp.value = '';
+      var prev = document.getElementById('pat-photo-preview');
+      if (prev) { prev.innerHTML = ''; prev.classList.add('hidden'); }
+      var clr = document.getElementById('btn-clear-pat-photos');
+      if (clr) clr.classList.add('hidden');
+    }
+
+    function handlePatPhotoSelect(e) {
+      var files = e.target.files;
+      if (!files || !files.length) return;
+      var tasks = [];
+      for (var i = 0; i < Math.min(files.length, 3); i++) {
+        tasks.push(compressImageFile(files[i]));
+      }
+      Promise.all(tasks).then(function(b64List) {
+        PAT_SELECTED_IMAGES = b64List;
+        var prev = document.getElementById('pat-photo-preview');
+        var clr = document.getElementById('btn-clear-pat-photos');
+        if (prev) {
+          prev.innerHTML = b64List.map(function(src) {
+            return '<img src="' + src + '" class="w-16 h-16 object-cover rounded-lg border border-green-200 shadow-xs">';
+          }).join('');
+          prev.classList.remove('hidden');
+        }
+        if (clr) clr.classList.remove('hidden');
+      });
+    }
+
+    function getOfflineQueue() {
+      try {
+        return JSON.parse(localStorage.getItem(PAT_QUEUE_KEY) || '[]');
+      } catch (err) {
+        return [];
+      }
+    }
+
+    function setOfflineQueue(arr) {
+      localStorage.setItem(PAT_QUEUE_KEY, JSON.stringify(arr || []));
+      renderOfflineQueue();
+      renderVolOfflineQueue();
+    }
+
+    function renderOfflineQueue() {
+      var q = getOfflineQueue();
+      var panel = document.getElementById('offline-queue-panel');
+      var cnt = document.getElementById('offline-queue-count');
+      var list = document.getElementById('offline-queue-list');
+      if (!panel || !cnt || !list) return;
+      if (!q.length) {
+        panel.classList.add('hidden');
+        cnt.textContent = '0';
+        list.innerHTML = '';
+        return;
+      }
+      panel.classList.remove('hidden');
+      cnt.textContent = String(q.length);
+      list.innerHTML = q.map(function(item, idx) {
+        var p = item.payload || {};
+        var imgCount = (p.images && p.images.length) ? p.images.length : 0;
+        return '<div class="bg-white rounded-xl border border-amber-200 px-3 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">' +
+          '<div>' +
+            '<div class="font-semibold text-slate-800">' + (idx + 1) + '. ' + escapeHtml(p.patientName || '-') + ' <span class="text-slate-500 font-normal">(ต.' + escapeHtml(p.subdistrict || '-') + ')</span></div>' +
+            '<div class="text-[11px] text-slate-500 mt-0.5">🕒 ' + escapeHtml(item.savedAt || '') + (p.gpsCoords ? (' • 📍 ' + escapeHtml(p.gpsCoords)) : '') + (imgCount ? (' • 📷 ' + imgCount + ' รูป') : '') + '</div>' +
+          '</div>' +
+          '<button type="button" onclick="deleteOfflineItem(' + idx + ')" class="text-rose-600 hover:bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200 text-[11px] font-medium cursor-pointer">ลบ</button>' +
+        '</div>';
+      }).join('');
+    }
+
+    function deleteOfflineItem(idx) {
+      var q = getOfflineQueue();
+      q.splice(idx, 1);
+      setOfflineQueue(q);
+    }
+
+    function buildPatientPayload() {
+      var roundId = document.getElementById('pat-round').value;
+      var hospStatus = document.getElementById('pat-hosp-status').value;
+      var hospDetail = document.getElementById('pat-hosp-detail').value.trim();
+      var hospitalHistory = hospDetail ? (hospStatus + ' (' + hospDetail + ')') : hospStatus;
+      return {
+        roundId: roundId,
+        patientName: document.getElementById('pat-name').value.trim(),
+        age: document.getElementById('pat-age').value,
+        phone: document.getElementById('pat-phone').value,
+        cid: document.getElementById('pat-cid').value,
+        subdistrict: document.getElementById('pat-subdistrict').value,
+        addressVillage: document.getElementById('pat-address').value,
+        gpsCoords: document.getElementById('pat-gps').value,
+        mapLink: document.getElementById('pat-map').value,
+        patientGroup: document.getElementById('pat-group').value,
+        underlyingDisease: document.getElementById('pat-disease').value,
+        hospitalHistory: hospitalHistory,
+        livingCaregiver: document.getElementById('pat-caregiver').value,
+        assistanceNeeds: document.getElementById('pat-assistance').value,
+        reporterName: document.getElementById('pat-reporter').value,
+        reporterAgency: document.getElementById('pat-agency').value,
+        images: PAT_SELECTED_IMAGES.slice(0, 3)
+      };
+    }
+
+    function pushToOfflineQueue(payload) {
+      try {
+        var q = getOfflineQueue();
+        var nowStr = new Date().toLocaleString('th-TH');
+        q.push({ savedAt: nowStr, payload: payload });
+        setOfflineQueue(q);
+        document.getElementById('form-patient').reset();
+        clearPatPhotos();
+        clearPatientDraft();
+        if (typeof Swal !== 'undefined') {
+          Swal.fire({
+            icon: 'success',
+            title: 'บันทึกออฟไลน์ลงเครื่องแล้ว 💾',
+            html: '<div class="text-sm">เก็บข้อมูลของ <b>' + escapeHtml(payload.patientName) + '</b> ไว้ในเครื่องเรียบร้อย<br><span class="text-xs text-slate-500">เมื่อกลับมามีสัญญาณอินเทอร์เน็ต กดปุ่ม <b>ซิงค์ข้อมูลขึ้นระบบ</b> ได้เลยครับ</span></div>',
+            confirmButtonColor: '#007a3d'
+          });
+        }
+      } catch (err) {
+        notify('error', 'พื้นที่จัดเก็บเต็ม', 'ไม่สามารถบันทึกลงเครื่องได้ (ลองลดจำนวนรูปภาพที่แนบ)');
+      }
+    }
+
+    function savePatientOfflineManual() {
+      var payload = buildPatientPayload();
+      if (!payload.roundId) {
+        notify('warning', 'แจ้งเตือน', 'กรุณาเลือกรอบออกหน่วยก่อน');
+        return;
+      }
+      if (!payload.patientName) {
+        notify('warning', 'กรุณากรอกชื่อผู้ป่วย', 'ระบุอย่างน้อย ชื่อ-นามสกุลผู้ป่วย เพื่อบันทึกแบบออฟไลน์');
+        return;
+      }
+      pushToOfflineQueue(payload);
+    }
+
+    function syncOfflineQueue() {
+      if (!navigator.onLine) {
+        notify('warning', 'ยังไม่มีสัญญาณอินเทอร์เน็ต 🟠', 'กรุณารอให้เชื่อมต่ออินเทอร์เน็ตก่อนแล้วกดซิงค์อีกครั้งครับ');
+        return;
+      }
+      if (!hasAnyBackend()) {
+        notify('info', 'ต้องใช้งานผ่าน Web App', 'กรุณา Deploy โค้ดบน Google Apps Script ก่อนซิงค์ข้อมูล');
+        return;
+      }
+      var q = getOfflineQueue();
+      if (!q.length) return;
+
+      var btn = document.getElementById('btn-sync-offline');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>กำลังซิงค์...</span>';
+
+      var syncedCount = 0;
+      var failedList = [];
+
+      function nextItem() {
+        var currentQueue = getOfflineQueue();
+        if (currentQueue.length === 0) {
+          btn.disabled = false;
+          btn.innerHTML = '<span>🔄</span> <span>ซิงค์ข้อมูลขึ้นระบบ</span>';
+          if (failedList.length > 0) {
+            setOfflineQueue(failedList);
+            Swal.fire({
+              icon: 'warning',
+              title: 'ซิงค์สำเร็จ ' + syncedCount + ' รายการ',
+              text: 'มีข้อมูลค้างส่ง ' + failedList.length + ' รายการที่ส่งไม่สำเร็จ กรุณาลองซิงค์ใหม่อีกครั้ง',
+              confirmButtonColor: '#007a3d'
+            });
+          } else {
+            Swal.fire({
+              icon: 'success',
+              title: 'ซิงค์ขึ้นระบบครบแล้ว! 🎉',
+              text: 'ส่งข้อมูลผู้ป่วยทั้งหมด ' + syncedCount + ' รายการขึ้น Google Sheet เรียบร้อยแล้ว',
+              confirmButtonColor: '#007a3d'
+            });
+          }
+          loadData();
+          return;
+        }
+        var item = currentQueue[0];
+        callBackend('registerPatient', item.payload, function(res) {
+          var remaining = getOfflineQueue();
+          remaining.shift();
+          setOfflineQueue(remaining);
+          if (res && res.success) { syncedCount++; } else { failedList.push(item); }
+          nextItem();
+        }, function() {
+          var remaining = getOfflineQueue();
+          remaining.shift();
+          setOfflineQueue(remaining);
+          failedList.push(item);
+          nextItem();
+        });
+      }
+
+      nextItem();
+    }
+
+    function initOfflineDraftAndListeners() {
+      updateNetworkBadge();
+      renderOfflineQueue();
+      setTimeout(restorePatientDraft, 400);
+
+      PAT_DRAFT_FIELD_IDS.forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) {
+          el.addEventListener('input', savePatientDraft);
+          el.addEventListener('change', savePatientDraft);
+        }
+      });
+
+      window.addEventListener('online', function() {
+        updateNetworkBadge();
+        var q = getOfflineQueue();
+        if (q.length > 0 && typeof Swal !== 'undefined') {
+          Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'success',
+            title: 'กลับมาออนไลน์แล้ว! มี ' + q.length + ' เคสรอซิงค์',
+            showConfirmButton: false,
+            timer: 4000
+          });
+        }
+      });
+      window.addEventListener('offline', updateNetworkBadge);
+    }
+
+    function submitPatient(e) {
+      e.preventDefault();
+      var payload = buildPatientPayload();
+      if (!payload.roundId) {
+        notify('warning', 'แจ้งเตือน', 'ยังไม่มีรอบออกหน่วยที่เปิดรับลงทะเบียน');
+        return;
+      }
+
+      if (!navigator.onLine) {
+        pushToOfflineQueue(payload);
+        return;
+      }
+
+      if (!hasAnyBackend()) {
+        notify('info', 'ต้องใช้งานผ่าน Web App', 'กรุณา Deploy โค้ดนี้บน Google Apps Script ก่อนใช้งานบันทึกข้อมูล');
+        return;
+      }
+
+      var btn = document.getElementById('btn-submit-pat');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึก...';
+
+      callBackend('registerPatient', payload, function(res) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-house-medical-circle-check"></i> <span>บันทึกข้อมูลผู้ป่วยเยี่ยมบ้าน</span>';
+        if (res && res.success) {
+          Swal.fire({
+            icon: 'success',
+            title: 'บันทึกข้อมูลผู้ป่วยสำเร็จ!',
+            html: '<div class="text-sm">รหัสผู้ป่วย: <b class="text-[#007a3d]">' + escapeHtml(res.patientId) + '</b><br>' + escapeHtml(res.roundLabel) + '</div>',
+            confirmButtonColor: '#007a3d'
+          });
+          document.getElementById('form-patient').reset();
+          clearPatPhotos();
+          clearPatientDraft();
+          loadData();
+        } else {
+          notify('warning', 'เกิดข้อผิดพลาด', (res && res.message) || 'เกิดข้อผิดพลาด');
+        }
+      }, function(err) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-house-medical-circle-check"></i> <span>บันทึกข้อมูลผู้ป่วยเยี่ยมบ้าน</span>';
+        if (typeof Swal !== 'undefined') {
+          Swal.fire({
+            icon: 'warning',
+            title: 'ส่งข้อมูลไม่สำเร็จ (สัญญาณอาจขัดข้อง)',
+            text: 'ต้องการบันทึกข้อมูลนี้เก็บไว้ในเครื่องแบบออฟไลน์เพื่อรอซิงค์ภายหลังหรือไม่?',
+            showCancelButton: true,
+            confirmButtonText: '💾 บันทึกลงเครื่องไว้ก่อน',
+            cancelButtonText: 'ยกเลิก',
+            confirmButtonColor: '#007a3d'
+          }).then(function(r) {
+            if (r.isConfirmed) pushToOfflineQueue(payload);
+          });
+        } else {
+          notify('error', 'เกิดข้อผิดพลาด', formatGasError(err));
+        }
+      });
+    }
+
+    function renderDirectory() {
+      var roundId = document.getElementById('dir-round-filter').value;
+      var q = (document.getElementById('dir-search').value || '').toLowerCase().trim();
+      var wrap = document.getElementById('dir-table-wrap');
+
+      if (DIR_MODE === 'vol') {
+        var list = APP_DATA.volunteers.filter(function(v) {
+          var matchR = !roundId || roundId === 'ALL' || v.Round_ID === roundId;
+          var matchQ = !q || [v.Full_Name, v.Position, v.Affiliation, v.Duty_Team].some(function(s) { return String(s).toLowerCase().indexOf(q) !== -1; });
+          return matchR && matchQ;
+        });
+        if (!list.length) {
+          wrap.innerHTML = '<div class="text-center py-8 text-sm text-slate-400">ไม่พบรายชื่อผู้ลงทะเบียน</div>';
+          return;
+        }
+        wrap.innerHTML =
+          '<table class="w-full text-sm text-left border-collapse">' +
+          '<thead><tr class="bg-green-50 text-slate-700 border-b border-green-200">' +
+          '<th class="py-2.5 px-3">#</th><th class="py-2.5 px-3">ชื่อ-สกุล</th><th class="py-2.5 px-3">ตำแหน่ง</th><th class="py-2.5 px-3">หน่วยงาน</th><th class="py-2.5 px-3">ทีมปฏิบัติงาน</th><th class="py-2.5 px-3">รอบ</th>' +
+          '</tr></thead><tbody class="divide-y divide-slate-100">' +
+          list.map(function(v, i) {
+            return '<tr class="hover:bg-green-50/40">' +
+              '<td class="py-2.5 px-3 text-slate-400">' + (i + 1) + '</td>' +
+              '<td class="py-2.5 px-3 font-medium text-slate-800">' + escapeHtml(v.Prefix + v.Full_Name) + '</td>' +
+              '<td class="py-2.5 px-3 text-slate-600">' + escapeHtml(v.Position) + '</td>' +
+              '<td class="py-2.5 px-3 text-slate-600">' + escapeHtml(v.Affiliation) + '</td>' +
+              '<td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded-full text-xs bg-green-50 text-[#007a3d] border border-green-200">' + escapeHtml(v.Duty_Team) + '</span></td>' +
+              '<td class="py-2.5 px-3 text-xs text-slate-500">' + escapeHtml(v.Round_Label) + '</td></tr>';
+          }).join('') +
+          '</tbody></table>';
+      } else {
+        var plist = APP_DATA.patients.filter(function(p) {
+          var matchR = !roundId || roundId === 'ALL' || p.Round_ID === roundId;
+          var matchQ = !q || [p.Patient_Name, p.Address_Village, p.Subdistrict, p.Underlying_Disease, p.Living_Caregiver, p.Assistance_Needs].some(function(s) { return String(s).toLowerCase().indexOf(q) !== -1; });
+          return matchR && matchQ;
+        });
+        if (!plist.length) {
+          wrap.innerHTML = '<div class="text-center py-8 text-sm text-slate-400">ไม่พบรายชื่อผู้ป่วยเยี่ยมบ้าน</div>';
+          return;
+        }
+        wrap.innerHTML =
+          '<table class="w-full text-sm text-left border-collapse">' +
+          '<thead><tr class="bg-green-50 text-slate-700 border-b border-green-200">' +
+          '<th class="py-2.5 px-3">#</th><th class="py-2.5 px-3">ชื่อ-สกุล (อายุ)</th><th class="py-2.5 px-3">ที่อยู่ / พิกัด</th><th class="py-2.5 px-3">สภาพปัญหา / โรค / ผู้ดูแล</th><th class="py-2.5 px-3">ความต้องการช่วยเหลือ</th><th class="py-2.5 px-3">สถานะ</th>' +
+          '</tr></thead><tbody class="divide-y divide-slate-100">' +
+          plist.map(function(p, i) {
+            var mapHtml = p.Map_Link ? '<div class="mt-1"><a href="' + escapeHtml(p.Map_Link) + '" target="_blank" class="inline-flex items-center gap-1 text-xs text-[#007a3d] hover:underline"><i class="fa-solid fa-location-dot"></i> เปิดแผนที่</a></div>' : '';
+            var badge = p.Visit_Status === 'เยี่ยมแล้ว' ? 'bg-green-100 text-[#006837]' : 'bg-amber-100 text-amber-700';
+            return '<tr class="hover:bg-green-50/40 align-top">' +
+              '<td class="py-2.5 px-3 text-slate-400">' + (i + 1) + '</td>' +
+              '<td class="py-2.5 px-3 font-medium text-slate-800">' + escapeHtml(p.Patient_Name) + '<div class="text-xs text-slate-500 font-normal">อายุ ' + escapeHtml(p.Age) + ' ปี</div></td>' +
+              '<td class="py-2.5 px-3 text-slate-600">' + escapeHtml(p.Address_Village) + ' ต.' + escapeHtml(p.Subdistrict) + mapHtml + '</td>' +
+              '<td class="py-2.5 px-3 text-xs"><div class="font-medium text-slate-700">' + escapeHtml(p.Patient_Group) + (p.Underlying_Disease ? ' (' + escapeHtml(p.Underlying_Disease) + ')' : '') + '</div><div class="text-slate-500 mt-0.5">ผู้ดูแล: ' + escapeHtml(p.Living_Caregiver || '-') + '</div></td>' +
+              '<td class="py-2.5 px-3 text-xs text-slate-600 max-w-xs whitespace-pre-line">' + escapeHtml(p.Assistance_Needs || '-') + '</td>' +
+              '<td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded-full text-xs ' + badge + '">' + escapeHtml(p.Visit_Status) + '</span></td></tr>';
+          }).join('') +
+          '</tbody></table>';
+      }
+    }
+
+    function loginAdmin(e) {
+      e.preventDefault();
+      if (!hasAnyBackend()) {
+        notify('info', 'ต้องใช้งานผ่าน Web App', 'กรุณา Deploy โค้ดนี้บน Google Apps Script ก่อนเข้าสู่ระบบแอดมิน');
+        return;
+      }
+      var pass = document.getElementById('admin-passcode-input').value;
+      Swal.fire({ title: 'กำลังตรวจสอบ...', allowOutsideClick: false, didOpen: function() { Swal.showLoading(); } });
+      callBackend('searchMemberRegistry', { query: q }, function(res) {
+          Swal.close();
+          if (res.success) {
+            ADMIN_PASSCODE = pass;
+            ADMIN_DATA = res;
+            document.getElementById('admin-login-box').classList.add('hidden');
+            document.getElementById('admin-panel').classList.remove('hidden');
+            populateAdminRoundFilter();
+            renderAdminTables();
+          } else {
+            notify('error', 'รหัสผ่านไม่ถูกต้อง', res.message);
+          }
+        })
+        .withFailureHandler(function(err) {
+          Swal.close();
+          notify('error', 'เกิดข้อผิดพลาด', formatGasError(err));
+        })
+        .verifyAdmin(pass);
+    }
+
+    function refreshAdminData() {
+      callBackend('saveRound', { passcode: ADMIN_PASSCODE, roundObj: result.value }, function(res) {
+        if (res.success) {
+          ADMIN_DATA = res;
+          populateAdminRoundFilter();
+          renderAdminTables();
+          loadData();
+        }
+      }).verifyAdmin(ADMIN_PASSCODE);
+    }
+
+    function populateAdminRoundFilter() {
+      var sel = document.getElementById('admin-round-filter');
+      var prev = sel.value;
+      sel.innerHTML = '<option value="ALL">ทุกรอบออกหน่วย</option>' +
+        ADMIN_DATA.rounds.map(function(r) {
+          return '<option value="' + escapeHtml(r.Round_ID) + '">รอบ ' + escapeHtml(r.Round_No) + ': ' + escapeHtml(r.Month_Label) + ' (' + escapeHtml(r.Status) + ')</option>';
+        }).join('');
+      var hasPrev = false;
+      for (var i = 0; i < sel.options.length; i++) {
+        if (sel.options[i].value === prev) hasPrev = true;
+      }
+      if (prev && hasPrev) {
+        sel.value = prev;
+      } else {
+        var open = ADMIN_DATA.rounds.find(function(r) { return r.Status === 'เปิดรับลงทะเบียน'; });
+        if (open) sel.value = open.Round_ID;
+      }
+    }
+
+    function renderAssistanceSummaryAndCharts(patsForRound) {
+      var keywords = [
+        { label: 'ถุงยังชีพ', pattern: 'ถุงยังชีพ', icon: 'fa-box-open' },
+        { label: 'ผ้าอ้อม/แพมเพิส', pattern: 'ผ้าอ้อม|แพมเพิส', icon: 'fa-baby' },
+        { label: 'เยี่ยมทีมสหวิชาชีพ', pattern: 'เยี่ยมบ้าน|สหวิชาชีพ', icon: 'fa-user-nurse' },
+        { label: 'ทำแผล/เปลี่ยนสาย', pattern: 'แผล|สาย', icon: 'fa-kit-medical' },
+        { label: 'กายภาพบำบัด', pattern: 'กายภาพ', icon: 'fa-person-walking' },
+        { label: 'นมผง/เวชภัณฑ์', pattern: 'นม|เวชภัณฑ์|ยา', icon: 'fa-prescription-bottle-medical' }
+      ];
+      document.getElementById('adm-needs-summary').innerHTML = keywords.map(function(k) {
+        var rx = new RegExp(k.pattern, 'i');
+        var cnt = patsForRound.filter(function(p) { return rx.test(p.Assistance_Needs || '') || rx.test(p.Underlying_Disease || ''); }).length;
+        return '<div class="bg-green-50/70 border border-green-200 rounded-xl p-3 text-center">' +
+          '<i class="fa-solid ' + k.icon + ' text-[#007a3d] text-base mb-1"></i>' +
+          '<div class="text-xl font-bold text-[#006837]">' + cnt + '</div>' +
+          '<div class="text-[11px] text-slate-600">' + k.label + '</div></div>';
+      }).join('');
+
+      if (typeof Chart === 'undefined') return;
+      var allPats = ADMIN_DATA.patients;
+      var subs = ['แม่ต้าน', 'แม่อุสุ', 'แม่หละ', 'แม่สอง', 'ท่าสองยาง', 'แม่วะหลวง'];
+      var subCounts = subs.map(function(s) {
+        return allPats.filter(function(p) { return p.Subdistrict === s; }).length;
+      });
+      if (CHART_SUB) CHART_SUB.destroy();
+      CHART_SUB = new Chart(document.getElementById('chart-subdistrict'), {
+        type: 'bar',
+        data: {
+          labels: subs,
+          datasets: [{ label: 'จำนวนผู้ป่วย (ราย)', data: subCounts, backgroundColor: '#007a3d', borderRadius: 6 }]
+        },
+        options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+      });
+
+      var grpMap = {};
+      allPats.forEach(function(p) {
+        var g = p.Patient_Group || 'อื่นๆ';
+        grpMap[g] = (grpMap[g] || 0) + 1;
+      });
+      var grpLabels = Object.keys(grpMap);
+      var grpData = grpLabels.map(function(k) { return grpMap[k]; });
+      if (CHART_GRP) CHART_GRP.destroy();
+      CHART_GRP = new Chart(document.getElementById('chart-group'), {
+        type: 'doughnut',
+        data: {
+          labels: grpLabels,
+          datasets: [{
+            data: grpData,
+            backgroundColor: ['#007a3d', '#10b981', '#0ea5e9', '#f59e0b', '#8b5cf6', '#ef4444', '#64748b']
+          }]
+        },
+        options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } } } }
+      });
+    }
+
+    function renderAdminTables() {
+      var roundId = document.getElementById('admin-round-filter').value;
+      var vols = ADMIN_DATA.volunteers.filter(function(v) { return (roundId === 'ALL' || v.Round_ID === roundId); });
+      var pats = ADMIN_DATA.patients.filter(function(p) { return roundId === 'ALL' || p.Round_ID === roundId; });
+
+      document.getElementById('adm-kpi-vol').textContent = vols.filter(function(v) { return v.Status !== 'ยกเลิก'; }).length;
+      document.getElementById('adm-kpi-pat').textContent = pats.length;
+      document.getElementById('adm-kpi-wait').textContent = pats.filter(function(p) { return p.Visit_Status === 'รอเยี่ยมบ้าน'; }).length;
+      document.getElementById('adm-kpi-done').textContent = pats.filter(function(p) { return p.Visit_Status === 'เยี่ยมแล้ว'; }).length;
+
+      renderAssistanceSummaryAndCharts(pats);
+      renderPatientMap();
+      renderSuppliesTable(roundId);
+
+      document.getElementById('admin-rounds-wrap').innerHTML =
+        '<table class="w-full text-xs sm:text-sm text-left border-collapse">' +
+        '<thead><tr class="bg-green-50 border-b border-green-200 text-slate-700">' +
+        '<th class="py-2 px-3">รอบที่</th><th class="py-2 px-3">เดือน</th><th class="py-2 px-3">ช่วงวันที่ออกหน่วย (2 วัน)</th><th class="py-2 px-3">ตำบล / สถานที่</th><th class="py-2 px-3">สถานะ</th><th class="py-2 px-3 text-right">จัดการ</th>' +
+        '</tr></thead><tbody class="divide-y divide-slate-100">' +
+        ADMIN_DATA.rounds.map(function(r) {
+          var badge = r.Status === 'เปิดรับลงทะเบียน' ? 'bg-green-100 text-[#006837]' : 'bg-slate-100 text-slate-600';
+          return '<tr>' +
+            '<td class="py-2 px-3 font-medium">' + escapeHtml(r.Round_No) + '</td>' +
+            '<td class="py-2 px-3">' + escapeHtml(r.Month_Label) + '</td>' +
+            '<td class="py-2 px-3">' + escapeHtml(formatDateRange(r)) + '</td>' +
+            '<td class="py-2 px-3">ต.' + escapeHtml(r.Subdistrict) + ' - ' + escapeHtml(r.Location) + '</td>' +
+            '<td class="py-2 px-3"><span class="px-2 py-0.5 rounded-full text-xs ' + badge + '">' + escapeHtml(r.Status) + '</span></td>' +
+            '<td class="py-2 px-3 text-right"><button type="button" onclick="openRoundModalById(\'' + escapeHtml(r.Round_ID) + '\')" class="text-[#007a3d] hover:underline text-xs font-medium cursor-pointer">แก้ไข</button></td></tr>';
+        }).join('') +
+        '</tbody></table>';
+
+      document.getElementById('admin-patients-wrap').innerHTML = pats.length
+        ? '<table class="w-full text-xs sm:text-sm text-left border-collapse">' +
+          '<thead><tr class="bg-green-50 border-b border-green-200 text-slate-700">' +
+          '<th class="py-2 px-3">รหัส</th><th class="py-2 px-3">ผู้ป่วย</th><th class="py-2 px-3">ที่อยู่ / พิกัด</th><th class="py-2 px-3">สภาพปัญหา / ประวัติ รพ. / ผู้ดูแล</th><th class="py-2 px-3">ความต้องการช่วยเหลือ</th><th class="py-2 px-3">สถานะ / รูปภาพ</th><th class="py-2 px-3 text-right">จัดการ</th>' +
+          '</tr></thead><tbody class="divide-y divide-slate-100">' +
+          pats.map(function(p) {
+            var mapHtml = p.Map_Link ? '<div><a href="' + escapeHtml(p.Map_Link) + '" target="_blank" class="text-xs text-[#007a3d] hover:underline"><i class="fa-solid fa-location-dot"></i> แผนที่</a></div>' : '';
+            var badge = p.Visit_Status === 'เยี่ยมแล้ว' ? 'bg-green-100 text-[#006837]' : 'bg-amber-100 text-amber-700';
+            var photoHtml = '';
+            if (p.Photo_URLs) {
+              var urls = p.Photo_URLs.split(',').map(function(u) { return u.trim(); }).filter(Boolean);
+              photoHtml = '<div class="mt-1 flex flex-wrap gap-1">' + urls.map(function(u, idx) {
+                return '<a href="' + escapeHtml(u) + '" target="_blank" class="text-[11px] text-sky-600 hover:underline"><i class="fa-regular fa-image"></i> รูป ' + (idx + 1) + '</a>';
+              }).join(' ') + '</div>';
+            }
+            return '<tr class="align-top">' +
+              '<td class="py-2 px-3 font-mono text-xs">' + escapeHtml(p.Patient_ID) + '</td>' +
+              '<td class="py-2 px-3 font-medium">' + escapeHtml(p.Patient_Name) + ' (' + escapeHtml(p.Age) + ' ปี)<div class="text-[11px] text-slate-400">' + escapeHtml(p.Phone) + '</div></td>' +
+              '<td class="py-2 px-3">' + escapeHtml(p.Address_Village) + ' ต.' + escapeHtml(p.Subdistrict) + mapHtml + '</td>' +
+              '<td class="py-2 px-3 text-xs"><div><b>ปัญหา/โรค:</b> ' + escapeHtml(p.Patient_Group) + ' ' + escapeHtml(p.Underlying_Disease) + '</div><div class="text-slate-500"><b>รพ.:</b> ' + escapeHtml(p.Hospital_History) + '</div><div class="text-slate-500"><b>ผู้ดูแล:</b> ' + escapeHtml(p.Living_Caregiver || '-') + '</div></td>' +
+              '<td class="py-2 px-3 max-w-xs text-xs whitespace-pre-line">' + escapeHtml(p.Assistance_Needs) + '</td>' +
+              '<td class="py-2 px-3"><span class="px-2 py-0.5 rounded-full text-xs ' + badge + '">' + escapeHtml(p.Visit_Status) + '</span>' + photoHtml + '</td>' +
+              '<td class="py-2 px-3 text-right whitespace-nowrap space-x-1">' +
+              '<button type="button" onclick="openVisitModalById(\'' + escapeHtml(p.Patient_ID) + '\')" class="bg-green-50 text-[#007a3d] hover:bg-green-100 px-2 py-1 rounded text-xs font-medium cursor-pointer">ผลเยี่ยม/รูป</button>' +
+              '<button type="button" onclick="openPatientModalById(\'' + escapeHtml(p.Patient_ID) + '\')" class="bg-slate-100 text-slate-700 hover:bg-slate-200 px-2 py-1 rounded text-xs font-medium cursor-pointer">แก้ไข</button>' +
+              '<button type="button" onclick="deletePatientById(\'' + escapeHtml(p.Patient_ID) + '\')" class="bg-rose-50 text-rose-600 hover:bg-rose-100 px-2 py-1 rounded text-xs font-medium cursor-pointer">ลบ</button>' +
+              '</td></tr>';
+          }).join('') +
+          '</tbody></table>'
+        : '<div class="text-center py-6 text-sm text-slate-400">ไม่มีข้อมูลผู้ป่วยในรอบนี้</div>';
+
+      document.getElementById('admin-volunteers-wrap').innerHTML = vols.length
+        ? '<table class="w-full text-xs sm:text-sm text-left border-collapse">' +
+          '<thead><tr class="bg-green-50 border-b border-green-200 text-slate-700">' +
+          '<th class="py-2 px-3">รหัส</th><th class="py-2 px-3">ชื่อ-สกุล</th><th class="py-2 px-3">ตำแหน่ง</th><th class="py-2 px-3">หน่วยงาน</th><th class="py-2 px-3">เบอร์โทร</th><th class="py-2 px-3">ทีม / สถานะ</th><th class="py-2 px-3 text-right">จัดการ</th>' +
+          '</tr></thead><tbody class="divide-y divide-slate-100">' +
+          vols.map(function(v) {
+            return '<tr>' +
+              '<td class="py-2 px-3 font-mono text-xs">' + escapeHtml(v.Reg_ID) + '</td>' +
+              '<td class="py-2 px-3 font-medium">' + escapeHtml(v.Prefix + v.Full_Name) + '</td>' +
+              '<td class="py-2 px-3">' + escapeHtml(v.Position) + '</td>' +
+              '<td class="py-2 px-3">' + escapeHtml(v.Affiliation) + '</td>' +
+              '<td class="py-2 px-3">' + escapeHtml(v.Phone) + '</td>' +
+              '<td class="py-2 px-3">' + escapeHtml(v.Duty_Team) + '<div class="text-[11px] text-slate-400">' + escapeHtml(v.Status) + '</div></td>' +
+              '<td class="py-2 px-3 text-right whitespace-nowrap space-x-1">' +
+              '<button type="button" onclick="openVolunteerModalById(\'' + escapeHtml(v.Reg_ID) + '\')" class="bg-slate-100 text-slate-700 hover:bg-slate-200 px-2 py-1 rounded text-xs font-medium cursor-pointer">แก้ไข</button>' +
+              '<button type="button" onclick="deleteVolunteerById(\'' + escapeHtml(v.Reg_ID) + '\')" class="bg-rose-50 text-rose-600 hover:bg-rose-100 px-2 py-1 rounded text-xs font-medium cursor-pointer">ลบ</button>' +
+              '</td></tr>';
+          }).join('') +
+          '</tbody></table>'
+        : '<div class="text-center py-6 text-sm text-slate-400">ไม่มีข้อมูลอาสาสมัครในรอบนี้</div>';
+    }
+
+    function sendSummaryLineNow() {
+      var roundId = document.getElementById('admin-round-filter').value;
+      Swal.fire({ title: 'กำลังส่งสรุปยอดเข้า LINE...', allowOutsideClick: false, didOpen: function() { Swal.showLoading(); } });
+      google.script.run
+        .withSuccessHandler(function(res) {
+          Swal.fire(res.success ? 'ส่งสำเร็จ' : 'แจ้งเตือน', res.message, res.success ? 'success' : 'warning');
+        })
+        .withFailureHandler(function(err) {
+          Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+        })
+        .sendRoundSummaryToLine(ADMIN_PASSCODE, roundId);
+    }
+
+    function openRoundModalById(roundId) {
+      var r = ADMIN_DATA.rounds.find(function(item) { return item.Round_ID === roundId; }) || null;
+      openRoundModal(r);
+    }
+
+    function openVisitModalById(patientId) {
+      var p = ADMIN_DATA.patients.find(function(item) { return item.Patient_ID === patientId; });
+      if (p) openVisitModal(p);
+    }
+
+    function openPatientModalById(patientId) {
+      var p = ADMIN_DATA.patients.find(function(item) { return item.Patient_ID === patientId; }) || null;
+      openPatientModal(p);
+    }
+
+    function openVolunteerModalById(regId) {
+      var v = ADMIN_DATA.volunteers.find(function(item) { return item.Reg_ID === regId; }) || null;
+      openVolunteerModal(v);
+    }
+
+    function openRoundModal(round) {
+      var subOptions = ['แม่ต้าน', 'แม่อุสุ', 'แม่หละ', 'แม่สอง', 'ท่าสองยาง', 'แม่วะหลวง'].map(function(s) {
+        return '<option value="' + s + '"' + (round && round.Subdistrict === s ? ' selected' : '') + '>' + s + '</option>';
+      }).join('');
+      var statusOptions = ['เปิดรับลงทะเบียน', 'ปิดรับลงทะเบียน', 'ดำเนินการแล้ว'].map(function(st) {
+        return '<option value="' + st + '"' + (round && round.Status === st ? ' selected' : '') + '>' + st + '</option>';
+      }).join('');
+
+      Swal.fire({
+        title: round ? 'แก้ไขรอบออกหน่วย (2 วัน)' : 'เพิ่มรอบออกหน่วยใหม่ (2 วัน)',
+        html:
+          '<div class="space-y-2 text-left text-sm">' +
+          '<label class="block text-xs text-slate-500">รอบที่ (ตัวเลข 1-12)</label>' +
+          '<input id="sw-r-no" class="swal2-input !m-0 !w-full" value="' + (round ? escapeHtml(round.Round_No) : (ADMIN_DATA.rounds.length + 1)) + '">' +
+          '<label class="block text-xs text-slate-500">ชื่อเดือน / ปี (เช่น กุมภาพันธ์ 2570)</label>' +
+          '<input id="sw-r-month" class="swal2-input !m-0 !w-full" value="' + (round ? escapeHtml(round.Month_Label) : '') + '">' +
+          '<div class="grid grid-cols-2 gap-2">' +
+          '<div><label class="block text-xs text-slate-500">ระหว่างวันที่ (วันเริ่ม)</label>' +
+          '<input id="sw-r-start" type="date" class="swal2-input !m-0 !w-full !text-xs" value="' + (round ? escapeHtml(round.Start_Date || '') : '') + '"></div>' +
+          '<div><label class="block text-xs text-slate-500">ถึงวันที่ (วันสิ้นสุด)</label>' +
+          '<input id="sw-r-end" type="date" class="swal2-input !m-0 !w-full !text-xs" value="' + (round ? escapeHtml(round.End_Date || '') : '') + '"></div>' +
+          '</div>' +
+          '<label class="block text-xs text-slate-500">ตำบลเป้าหมาย</label>' +
+          '<select id="sw-r-sub" class="swal2-select !m-0 !w-full">' + subOptions + '</select>' +
+          '<label class="block text-xs text-slate-500">สถานที่จัดหน่วย (เช่น ศูนย์การเรียน ตชด.บ้าน...)</label>' +
+          '<input id="sw-r-loc" class="swal2-input !m-0 !w-full" value="' + (round ? escapeHtml(round.Location) : '') + '">' +
+          '<label class="block text-xs text-slate-500">สถานะ</label>' +
+          '<select id="sw-r-status" class="swal2-select !m-0 !w-full">' + statusOptions + '</select>' +
+          '</div>',
+        focusConfirm: false,
+        showCancelButton: true,
+        confirmButtonText: 'บันทึก',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#007a3d',
+        preConfirm: function() {
+          return {
+            roundId: round ? round.Round_ID : '',
+            roundNo: document.getElementById('sw-r-no').value,
+            monthLabel: document.getElementById('sw-r-month').value,
+            startDate: document.getElementById('sw-r-start').value,
+            endDate: document.getElementById('sw-r-end').value,
+            subdistrict: document.getElementById('sw-r-sub').value,
+            location: document.getElementById('sw-r-loc').value,
+            status: document.getElementById('sw-r-status').value
+          };
+        }
+      }).then(function(result) {
+        if (result.isConfirmed && result.value) {
+          callBackend('saveVolunteerAdmin', { passcode: ADMIN_PASSCODE, obj: result.value }, function(res) {
+            Swal.fire(res.success ? 'สำเร็จ' : 'ผิดพลาด', res.message, res.success ? 'success' : 'error');
+            if (res.success) refreshAdminData();
+          });
+        }
+      });
+    }
+
+    function openVolunteerModal(v) {
+      var defaultRound = document.getElementById('admin-round-filter').value;
+      var roundOptions = ADMIN_DATA.rounds.map(function(r) {
+        var sel = (v ? v.Round_ID === r.Round_ID : r.Round_ID === defaultRound) ? ' selected' : '';
+        return '<option value="' + escapeHtml(r.Round_ID) + '"' + sel + '>รอบ ' + escapeHtml(r.Round_No) + ': ' + escapeHtml(r.Month_Label) + '</option>';
+      }).join('');
+      var prefixList = ['นาย', 'นาง', 'นางสาว', 'นพ.', 'พญ.', 'ทพ.', 'ทพญ.', 'ภก.', 'ภญ.'];
+      var prefixOpts = prefixList.map(function(px) {
+        return '<option value="' + px + '"' + (v && v.Prefix === px ? ' selected' : '') + '>' + px + '</option>';
+      }).join('');
+      var statusOpts = ['ลงทะเบียนแล้ว', 'ยกเลิก'].map(function(st) {
+        return '<option value="' + st + '"' + (v && v.Status === st ? ' selected' : '') + '>' + st + '</option>';
+      }).join('');
+
+      Swal.fire({
+        title: v ? 'แก้ไขข้อมูลผู้ร่วมออกหน่วย' : 'เพิ่มรายชื่อผู้ร่วมออกหน่วย',
+        html:
+          '<div class="space-y-2 text-left text-xs">' +
+          '<label class="block text-slate-500">รอบออกหน่วย</label>' +
+          '<select id="sw-vol-round" class="swal2-select !m-0 !w-full !text-xs">' + roundOptions + '</select>' +
+          '<div class="grid grid-cols-3 gap-2">' +
+          '<div><label class="block text-slate-500">คำนำหน้า</label><select id="sw-vol-prefix" class="swal2-select !m-0 !w-full !text-xs">' + prefixOpts + '</select></div>' +
+          '<div class="col-span-2"><label class="block text-slate-500">ชื่อ-นามสกุล</label><input id="sw-vol-name" class="swal2-input !m-0 !w-full !text-xs" value="' + (v ? escapeHtml(v.Full_Name) : '') + '"></div>' +
+          '</div>' +
+          '<label class="block text-slate-500">ตำแหน่ง / วิชาชีพ</label>' +
+          '<input id="sw-vol-pos" class="swal2-input !m-0 !w-full !text-xs" value="' + (v ? escapeHtml(v.Position) : '') + '">' +
+          '<label class="block text-slate-500">หน่วยงาน</label>' +
+          '<input id="sw-vol-aff" class="swal2-input !m-0 !w-full !text-xs" value="' + (v ? escapeHtml(v.Affiliation) : '') + '">' +
+          '<label class="block text-slate-500">เบอร์โทร</label>' +
+          '<input id="sw-vol-phone" class="swal2-input !m-0 !w-full !text-xs" value="' + (v ? escapeHtml(v.Phone) : '') + '">' +
+          '<label class="block text-slate-500">ทีมปฏิบัติงาน</label>' +
+          '<input id="sw-vol-team" class="swal2-input !m-0 !w-full !text-xs" value="' + (v ? escapeHtml(v.Duty_Team) : 'หน่วยแพทย์เคลื่อนที่ (ตรวจรักษา/จ่ายยา)') + '">' +
+          '<label class="block text-slate-500">สถานะ</label>' +
+          '<select id="sw-vol-status" class="swal2-select !m-0 !w-full !text-xs">' + statusOpts + '</select>' +
+          '</div>',
+        showCancelButton: true,
+        confirmButtonText: 'บันทึก',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#007a3d',
+        preConfirm: function() {
+          return {
+            regId: v ? v.Reg_ID : '',
+            roundId: document.getElementById('sw-vol-round').value,
+            prefix: document.getElementById('sw-vol-prefix').value,
+            fullName: document.getElementById('sw-vol-name').value,
+            position: document.getElementById('sw-vol-pos').value,
+            affiliation: document.getElementById('sw-vol-aff').value,
+            phone: document.getElementById('sw-vol-phone').value,
+            dutyTeam: document.getElementById('sw-vol-team').value,
+            status: document.getElementById('sw-vol-status').value
+          };
+        }
+      }).then(function(result) {
+        if (result.isConfirmed && result.value) {
+          callBackend('deleteVolunteerAdmin', { passcode: ADMIN_PASSCODE, regId: regId }, function(res) {
+            Swal.fire(res.success ? 'สำเร็จ' : 'ผิดพลาด', res.message, res.success ? 'success' : 'error');
+            if (res.success) refreshAdminData();
+          });
+        }
+      });
+    }
+
+    function deleteVolunteerById(regId) {
+      Swal.fire({
+        title: 'ยืนยันลบรายชื่อถาวร?',
+        text: 'รหัส ' + regId + ' จะถูกลบออกจาก Google Sheet',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#e11d48',
+        confirmButtonText: 'ลบข้อมูล',
+        cancelButtonText: 'ยกเลิก'
+      }).then(function(r) {
+        if (r.isConfirmed) {
+          callBackend('savePatientAdmin', { passcode: ADMIN_PASSCODE, obj: result.value }, function(res) {
+            Swal.fire(res.success ? 'ลบแล้ว' : 'ผิดพลาด', res.message, res.success ? 'success' : 'error');
+            if (res.success) refreshAdminData();
+          });
+        }
+      });
+    }
+
+    function openPatientModal(p) {
+      var defaultRound = document.getElementById('admin-round-filter').value;
+      var roundOptions = ADMIN_DATA.rounds.map(function(r) {
+        var sel = (p ? p.Round_ID === r.Round_ID : r.Round_ID === defaultRound) ? ' selected' : '';
+        return '<option value="' + escapeHtml(r.Round_ID) + '"' + sel + '>รอบ ' + escapeHtml(r.Round_No) + ': ' + escapeHtml(r.Month_Label) + '</option>';
+      }).join('');
+      var subOptions = ['แม่ต้าน', 'แม่อุสุ', 'แม่หละ', 'แม่สอง', 'ท่าสองยาง', 'แม่วะหลวง'].map(function(s) {
+        return '<option value="' + s + '"' + (p && p.Subdistrict === s ? ' selected' : '') + '>' + s + '</option>';
+      }).join('');
+      var stOptions = ['รอเยี่ยมบ้าน', 'เยี่ยมแล้ว', 'เลื่อน / ไม่พบผู้ป่วย'].map(function(st) {
+        return '<option value="' + st + '"' + (p && p.Visit_Status === st ? ' selected' : '') + '>' + st + '</option>';
+      }).join('');
+
+      Swal.fire({
+        title: p ? 'แก้ไขข้อมูลผู้ป่วยเยี่ยมบ้าน' : 'เพิ่มรายชื่อผู้ป่วยเยี่ยมบ้าน',
+        width: '680px',
+        html:
+          '<div class="space-y-2 text-left text-xs">' +
+          '<label class="block text-slate-500">รอบออกหน่วย</label>' +
+          '<select id="sw-pat-round" class="swal2-select !m-0 !w-full !text-xs">' + roundOptions + '</select>' +
+          '<div class="grid grid-cols-3 gap-2">' +
+          '<div class="col-span-2"><label class="block text-slate-500">ชื่อ-นามสกุลผู้ป่วย</label><input id="sw-pat-name" class="swal2-input !m-0 !w-full !text-xs" value="' + (p ? escapeHtml(p.Patient_Name) : '') + '"></div>' +
+          '<div><label class="block text-slate-500">อายุ (ปี)</label><input id="sw-pat-age" type="number" class="swal2-input !m-0 !w-full !text-xs" value="' + (p ? escapeHtml(p.Age) : '') + '"></div>' +
+          '</div>' +
+          '<div class="grid grid-cols-2 gap-2">' +
+          '<div><label class="block text-slate-500">เบอร์โทร</label><input id="sw-pat-phone" class="swal2-input !m-0 !w-full !text-xs" value="' + (p ? escapeHtml(p.Phone) : '') + '"></div>' +
+          '<div><label class="block text-slate-500">ตำบล</label><select id="sw-pat-sub" class="swal2-select !m-0 !w-full !text-xs">' + subOptions + '</select></div>' +
+          '</div>' +
+          '<label class="block text-slate-500">ที่อยู่ (บ้านเลขที่/หมู่ที่/หมู่บ้าน)</label>' +
+          '<input id="sw-pat-addr" class="swal2-input !m-0 !w-full !text-xs" value="' + (p ? escapeHtml(p.Address_Village) : '') + '">' +
+          '<div class="grid grid-cols-2 gap-2">' +
+          '<div><label class="block text-slate-500">พิกัด GPS</label><input id="sw-pat-gps" class="swal2-input !m-0 !w-full !text-xs" value="' + (p ? escapeHtml(p.GPS_Coords) : '') + '"></div>' +
+          '<div><label class="block text-slate-500">ลิงก์แผนที่</label><input id="sw-pat-map" class="swal2-input !m-0 !w-full !text-xs" value="' + (p ? escapeHtml(p.Map_Link) : '') + '"></div>' +
+          '</div>' +
+          '<div class="grid grid-cols-2 gap-2">' +
+          '<div><label class="block text-slate-500">สภาพปัญหา / กลุ่มเป้าหมาย</label><input id="sw-pat-grp" class="swal2-input !m-0 !w-full !text-xs" value="' + (p ? escapeHtml(p.Patient_Group) : 'ผู้ป่วยติดเตียง / ติดบ้าน') + '"></div>' +
+          '<div><label class="block text-slate-500">ป่วยเป็นโรค / วินิจฉัย</label><input id="sw-pat-dis" class="swal2-input !m-0 !w-full !text-xs" value="' + (p ? escapeHtml(p.Underlying_Disease) : '') + '"></div>' +
+          '</div>' +
+          '<div class="grid grid-cols-2 gap-2">' +
+          '<div><label class="block text-slate-500">ประวัติการมา รพ.ท่าสองยาง</label><input id="sw-pat-hosp" class="swal2-input !m-0 !w-full !text-xs" value="' + (p ? escapeHtml(p.Hospital_History) : '') + '"></div>' +
+          '<div><label class="block text-slate-500">สภาพความเป็นอยู่ / ผู้ดูแล</label><input id="sw-pat-care" class="swal2-input !m-0 !w-full !text-xs" value="' + (p ? escapeHtml(p.Living_Caregiver || '') : '') + '"></div>' +
+          '</div>' +
+          '<label class="block text-slate-500">ความต้องการช่วยเหลือ (ขึ้นบรรทัดใหม่ได้)</label>' +
+          '<textarea id="sw-pat-need" class="swal2-textarea !m-0 !w-full !text-xs !h-16">' + (p ? escapeHtml(p.Assistance_Needs) : '') + '</textarea>' +
+          '<div class="grid grid-cols-3 gap-2">' +
+          '<div><label class="block text-slate-500">ผู้แจ้ง</label><input id="sw-pat-rep" class="swal2-input !m-0 !w-full !text-xs" value="' + (p ? escapeHtml(p.Reporter_Name) : '') + '"></div>' +
+          '<div><label class="block text-slate-500">หน่วยงาน</label><input id="sw-pat-ag" class="swal2-input !m-0 !w-full !text-xs" value="' + (p ? escapeHtml(p.Reporter_Agency) : '') + '"></div>' +
+          '<div><label class="block text-slate-500">สถานะเยี่ยม</label><select id="sw-pat-st" class="swal2-select !m-0 !w-full !text-xs">' + stOptions + '</select></div>' +
+          '</div>' +
+          '</div>',
+        showCancelButton: true,
+        confirmButtonText: 'บันทึก',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#007a3d',
+        preConfirm: function() {
+          return {
+            patientId: p ? p.Patient_ID : '',
+            roundId: document.getElementById('sw-pat-round').value,
+            patientName: document.getElementById('sw-pat-name').value,
+            age: document.getElementById('sw-pat-age').value,
+            cid: p ? (p.CID || '') : '',
+            phone: document.getElementById('sw-pat-phone').value,
+            addressVillage: document.getElementById('sw-pat-addr').value,
+            subdistrict: document.getElementById('sw-pat-sub').value,
+            gpsCoords: document.getElementById('sw-pat-gps').value,
+            mapLink: document.getElementById('sw-pat-map').value,
+            patientGroup: document.getElementById('sw-pat-grp').value,
+            underlyingDisease: document.getElementById('sw-pat-dis').value,
+            hospitalHistory: document.getElementById('sw-pat-hosp').value,
+            livingCaregiver: document.getElementById('sw-pat-care').value,
+            assistanceNeeds: document.getElementById('sw-pat-need').value,
+            reporterName: document.getElementById('sw-pat-rep').value,
+            reporterAgency: document.getElementById('sw-pat-ag').value,
+            visitStatus: document.getElementById('sw-pat-st').value,
+            visitNote: p ? (p.Visit_Note || '') : ''
+          };
+        }
+      }).then(function(result) {
+        if (result.isConfirmed && result.value) {
+          callBackend('deletePatientAdmin', { passcode: ADMIN_PASSCODE, patientId: patientId }, function(res) {
+            Swal.fire(res.success ? 'สำเร็จ' : 'ผิดพลาด', res.message, res.success ? 'success' : 'error');
+            if (res.success) refreshAdminData();
+          });
+        }
+      });
+    }
+
+    function deletePatientById(patientId) {
+      Swal.fire({
+        title: 'ยืนยันลบข้อมูลผู้ป่วยถาวร?',
+        text: 'รหัส ' + patientId + ' จะถูกลบออกจาก Google Sheet',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#e11d48',
+        confirmButtonText: 'ลบข้อมูล',
+        cancelButtonText: 'ยกเลิก'
+      }).then(function(r) {
+        if (r.isConfirmed) {
+          callBackend('updatePatientVisit', { passcode: ADMIN_PASSCODE, patientId: p.Patient_ID, visitStatus: result.value.status, visitNote: result.value.note, images: result.value.images }, function(res) {
+            Swal.fire(res.success ? 'ลบแล้ว' : 'ผิดพลาด', res.message, res.success ? 'success' : 'error');
+            if (res.success) refreshAdminData();
+          });
+        }
+      });
+    }
+
+    function compressImageFile(file) {
+      return new Promise(function(resolve) {
+        var reader = new FileReader();
+        reader.onload = function(ev) {
+          var img = new Image();
+          img.onload = function() {
+            var maxW = 1200;
+            var w = img.width;
+            var h = img.height;
+            if (w > maxW) {
+              h = Math.round(h * (maxW / w));
+              w = maxW;
+            }
+            var canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+            resolve(canvas.toDataURL('image/jpeg', 0.75));
+          };
+          img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function openVisitModal(p) {
+      var stOptions = ['รอเยี่ยมบ้าน', 'เยี่ยมแล้ว', 'เลื่อน / ไม่พบผู้ป่วย'].map(function(st) {
+        return '<option value="' + st + '"' + (p.Visit_Status === st ? ' selected' : '') + '>' + st + '</option>';
+      }).join('');
+
+      Swal.fire({
+        title: 'อัปเดตผลเยี่ยมบ้าน: ' + p.Patient_Name,
+        html:
+          '<div class="space-y-2 text-left text-sm">' +
+          '<label class="block text-xs text-slate-500">สถานะการเยี่ยมบ้าน</label>' +
+          '<select id="sw-v-status" class="swal2-select !m-0 !w-full">' + stOptions + '</select>' +
+          '<label class="block text-xs text-slate-500">บันทึกผลการเยี่ยมบ้าน / การช่วยเหลือ</label>' +
+          '<textarea id="sw-v-note" class="swal2-textarea !m-0 !w-full">' + escapeHtml(p.Visit_Note || '') + '</textarea>' +
+          '<label class="block text-xs text-slate-500">แนบรูปถ่ายเยี่ยมบ้าน (อัปโหลดลง Google Drive อัตโนมัติ สูงสุด 3 รูป)</label>' +
+          '<input id="sw-v-photos" type="file" accept="image/*" capture="environment" multiple class="w-full text-xs border border-slate-200 rounded-lg p-2 bg-slate-50">' +
+          '</div>',
+        showCancelButton: true,
+        confirmButtonText: 'บันทึกและอัปโหลดรูป',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#007a3d',
+        preConfirm: function() {
+          var files = document.getElementById('sw-v-photos').files;
+          var selected = [];
+          for (var i = 0; i < Math.min(files.length, 3); i++) {
+            selected.push(compressImageFile(files[i]));
+          }
+          return Promise.all(selected).then(function(b64List) {
+            return {
+              status: document.getElementById('sw-v-status').value,
+              note: document.getElementById('sw-v-note').value,
+              images: b64List
+            };
+          });
+        }
+      }).then(function(result) {
+        if (result.isConfirmed && result.value) {
+          Swal.fire({ title: 'กำลังบันทึกและอัปโหลดรูป...', allowOutsideClick: false, didOpen: function() { Swal.showLoading(); } });
+          callBackend('saveSettings', { passcode: ADMIN_PASSCODE, newSettings: result.value }, function(res) {
+            Swal.fire(res.success ? 'สำเร็จ' : 'ผิดพลาด', res.message, res.success ? 'success' : 'error');
+            if (res.success) refreshAdminData();
+          });
+        }
+      });
+    }
+
+    function openSettingsModal() {
+      Swal.fire({
+        title: 'ตั้งค่าระบบ / LINE / โลโก้ / Drive',
+        width: '560px',
+        html:
+          '<div class="space-y-2 text-left text-xs">' +
+          '<label class="block text-slate-500">ชื่อหัวข้อระบบ (บรรทัดบน)</label>' +
+          '<input id="sw-s-title" class="swal2-input !m-0 !w-full !text-xs" value="' + escapeHtml(ADMIN_DATA.settings.appTitle || APP_DATA.appTitle) + '">' +
+          '<label class="block text-slate-500">ชื่อหน่วยงาน (บรรทัดล่าง)</label>' +
+          '<input id="sw-s-org" class="swal2-input !m-0 !w-full !text-xs" value="' + escapeHtml(ADMIN_DATA.settings.orgName) + '">' +
+          '<label class="block text-slate-500">URL โลโก้หน่วยงาน (.png / .jpg)</label>' +
+          '<input id="sw-s-logo" class="swal2-input !m-0 !w-full !text-xs" placeholder="https://example.com/logo.png" value="' + escapeHtml(ADMIN_DATA.settings.logoUrl) + '">' +
+          '<label class="block text-slate-500">LINE Channel Access Token (Messaging API)</label>' +
+          '<input id="sw-s-ltoken" class="swal2-input !m-0 !w-full !text-xs" placeholder="วาง Channel Access Token" value="' + escapeHtml(ADMIN_DATA.settings.lineToken || '') + '">' +
+          '<label class="block text-slate-500">LINE User ID หรือ Group ID ปลายทาง</label>' +
+          '<input id="sw-s-ltarget" class="swal2-input !m-0 !w-full !text-xs" placeholder="Uxxxx... หรือ Cxxxx..." value="' + escapeHtml(ADMIN_DATA.settings.lineTargetId || '') + '">' +
+          '<label class="block text-slate-500">Google Drive Folder ID เก็บรูปเยี่ยมบ้าน (เว้นว่างจะสร้างโฟลเดอร์ให้อัตโนมัติ)</label>' +
+          '<input id="sw-s-folder" class="swal2-input !m-0 !w-full !text-xs" placeholder="Folder ID (ไม่บังคับ)" value="' + escapeHtml(ADMIN_DATA.settings.driveFolderId || '') + '">' +
+          '<label class="block text-slate-500">LINE LIFF ID (สำหรับเปิดใช้งานผ่าน Rich Menu)</label>' +
+          '<input id="sw-s-liff" class="swal2-input !m-0 !w-full !text-xs" placeholder="เช่น 200xxxxxxx-xxxxxxxx" value="' + escapeHtml(ADMIN_DATA.settings.liffId || '') + '">' +
+          '<label class="block text-slate-500">ตัวเลือก ตำแหน่ง / วิชาชีพ (บรรทัดละ 1 รายการ)</label>' +
+          '<textarea id="sw-s-positions" rows="3" class="swal2-textarea !m-0 !w-full !text-xs !h-auto" placeholder="บรรทัดละ 1 ตำแหน่ง">' + escapeHtml(ADMIN_DATA.settings.positionOptions || APP_DATA.positionOptions || '') + '</textarea>' +
+          '<label class="block text-slate-500">ตัวเลือก สถานที่ปฏิบัติงาน / สังกัด (บรรทัดละ 1 รายการ)</label>' +
+          '<textarea id="sw-s-affiliations" rows="3" class="swal2-textarea !m-0 !w-full !text-xs !h-auto" placeholder="บรรทัดละ 1 หน่วยงาน">' + escapeHtml(ADMIN_DATA.settings.affiliationOptions || APP_DATA.affiliationOptions || '') + '</textarea>' +
+          '<label class="block text-slate-500">เปลี่ยนรหัสผ่าน Admin ใหม่ (เว้นว่างหากไม่เปลี่ยน)</label>' +
+          '<input id="sw-s-pass" type="password" class="swal2-input !m-0 !w-full !text-xs" placeholder="อย่างน้อย 4 ตัวอักษร">' +
+          '</div>',
+        showCancelButton: true,
+        confirmButtonText: 'บันทึก',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#007a3d',
+        preConfirm: function() {
+          return {
+            appTitle: document.getElementById('sw-s-title').value,
+            orgName: document.getElementById('sw-s-org').value,
+            logoUrl: document.getElementById('sw-s-logo').value,
+            lineToken: document.getElementById('sw-s-ltoken').value,
+            lineTargetId: document.getElementById('sw-s-ltarget').value,
+            driveFolderId: document.getElementById('sw-s-folder').value,
+            liffId: document.getElementById('sw-s-liff').value,
+            positionOptions: document.getElementById('sw-s-positions').value,
+            affiliationOptions: document.getElementById('sw-s-affiliations').value,
+            newPasscode: document.getElementById('sw-s-pass').value
+          };
+        }
+      }).then(function(result) {
+        if (result.isConfirmed && result.value) {
+          callBackend('saveSupplyAdmin', { passcode: ADMIN_PASSCODE, obj: result.value }, function(res) {
+            Swal.fire(res.success ? 'สำเร็จ' : 'ผิดพลาด', res.message, res.success ? 'success' : 'error');
+            if (res.success) {
+              if (result.value.newPasscode) ADMIN_PASSCODE = result.value.newPasscode;
+              refreshAdminData();
+              loadData();
+            }
+          });
+        }
+      });
+    }
+
+    function renderSuppliesTable(roundId) {
+      var sups = (ADMIN_DATA.supplies || []).filter(function(s) {
+        return roundId === 'ALL' || s.Round_ID === roundId;
+      });
+      var wrap = document.getElementById('admin-supplies-wrap');
+      if (!sups.length) {
+        wrap.innerHTML = '<div class="text-center py-6 text-sm text-slate-400">ยังไม่มีรายการเบิก-จ่ายสิ่งของในรอบนี้ (กดปุ่ม + เพิ่มรายการสิ่งของ)</div>';
+        return;
+      }
+      wrap.innerHTML =
+        '<table class="w-full text-xs sm:text-sm text-left border-collapse">' +
+        '<thead><tr class="bg-green-50 border-b border-green-200 text-slate-700">' +
+        '<th class="py-2 px-3">รายการสิ่งของ</th><th class="py-2 px-3">หน่วย</th><th class="py-2 px-3 text-right">เตรียมลงพื้นที่</th><th class="py-2 px-3 text-right">จ่ายจริง</th><th class="py-2 px-3 text-right">คงเหลือ</th><th class="py-2 px-3">หมายเหตุ</th><th class="py-2 px-3 text-right">จัดการ</th>' +
+        '</tr></thead><tbody class="divide-y divide-slate-100">' +
+        sups.map(function(s) {
+          var rem = Number(s.Remaining_Qty);
+          var remCls = rem < 0 ? 'text-rose-600 font-bold' : (rem === 0 ? 'text-slate-500' : 'text-[#007a3d] font-semibold');
+          return '<tr>' +
+            '<td class="py-2 px-3 font-medium text-slate-800">' + escapeHtml(s.Item_Name) + '<div class="text-[11px] text-slate-400">' + escapeHtml(s.Round_Label) + '</div></td>' +
+            '<td class="py-2 px-3">' + escapeHtml(s.Unit) + '</td>' +
+            '<td class="py-2 px-3 text-right">' + escapeHtml(s.Prepared_Qty) + '</td>' +
+            '<td class="py-2 px-3 text-right">' + escapeHtml(s.Distributed_Qty) + '</td>' +
+            '<td class="py-2 px-3 text-right ' + remCls + '">' + escapeHtml(s.Remaining_Qty) + '</td>' +
+            '<td class="py-2 px-3 text-xs text-slate-500">' + escapeHtml(s.Note || '-') + '</td>' +
+            '<td class="py-2 px-3 text-right whitespace-nowrap space-x-1">' +
+            '<button type="button" onclick="openSupplyModalById(\'' + escapeHtml(s.Supply_ID) + '\')" class="bg-slate-100 text-slate-700 hover:bg-slate-200 px-2 py-1 rounded text-xs font-medium cursor-pointer">แก้ไข</button>' +
+            '<button type="button" onclick="deleteSupplyById(\'' + escapeHtml(s.Supply_ID) + '\')" class="bg-rose-50 text-rose-600 hover:bg-rose-100 px-2 py-1 rounded text-xs font-medium cursor-pointer">ลบ</button>' +
+            '</td></tr>';
+        }).join('') +
+        '</tbody></table>';
+    }
+
+    function openSupplyModalById(supplyId) {
+      var s = (ADMIN_DATA.supplies || []).find(function(item) { return item.Supply_ID === supplyId; }) || null;
+      openSupplyModal(s);
+    }
+
+    function openSupplyModal(s) {
+      var defaultRound = document.getElementById('admin-round-filter').value;
+      var roundOptions = ADMIN_DATA.rounds.map(function(r) {
+        var sel = (s ? s.Round_ID === r.Round_ID : r.Round_ID === defaultRound) ? ' selected' : '';
+        return '<option value="' + escapeHtml(r.Round_ID) + '"' + sel + '>รอบ ' + escapeHtml(r.Round_No) + ': ' + escapeHtml(r.Month_Label) + '</option>';
+      }).join('');
+
+      Swal.fire({
+        title: s ? 'แก้ไขยอดสิ่งของสนับสนุน' : 'เพิ่มรายการสิ่งของสนับสนุน',
+        html:
+          '<div class="space-y-2 text-left text-xs">' +
+          '<label class="block text-slate-500">รอบออกหน่วย</label>' +
+          '<select id="sw-sup-round" class="swal2-select !m-0 !w-full !text-xs">' + roundOptions + '</select>' +
+          '<div class="grid grid-cols-3 gap-2">' +
+          '<div class="col-span-2"><label class="block text-slate-500">ชื่อสิ่งของ (เช่น ถุงยังชีพ, แพมเพิส, นมผง)</label><input id="sw-sup-name" class="swal2-input !m-0 !w-full !text-xs" value="' + (s ? escapeHtml(s.Item_Name) : 'ถุงยังชีพ') + '"></div>' +
+          '<div><label class="block text-slate-500">หน่วยนับ</label><input id="sw-sup-unit" class="swal2-input !m-0 !w-full !text-xs" value="' + (s ? escapeHtml(s.Unit) : 'ชุด') + '"></div>' +
+          '</div>' +
+          '<div class="grid grid-cols-2 gap-2">' +
+          '<div><label class="block text-slate-500">จำนวนที่เตรียมลงพื้นที่</label><input id="sw-sup-prep" type="number" min="0" class="swal2-input !m-0 !w-full !text-xs" value="' + (s ? escapeHtml(s.Prepared_Qty) : '0') + '"></div>' +
+          '<div><label class="block text-slate-500">จำนวนที่จ่ายจริง</label><input id="sw-sup-dist" type="number" min="0" class="swal2-input !m-0 !w-full !text-xs" value="' + (s ? escapeHtml(s.Distributed_Qty) : '0') + '"></div>' +
+          '</div>' +
+          '<label class="block text-slate-500">หมายเหตุ</label>' +
+          '<input id="sw-sup-note" class="swal2-input !m-0 !w-full !text-xs" value="' + (s ? escapeHtml(s.Note || '') : '') + '">' +
+          '</div>',
+        showCancelButton: true,
+        confirmButtonText: 'บันทึก',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#007a3d',
+        preConfirm: function() {
+          return {
+            supplyId: s ? s.Supply_ID : '',
+            roundId: document.getElementById('sw-sup-round').value,
+            itemName: document.getElementById('sw-sup-name').value,
+            unit: document.getElementById('sw-sup-unit').value,
+            preparedQty: document.getElementById('sw-sup-prep').value,
+            distributedQty: document.getElementById('sw-sup-dist').value,
+            note: document.getElementById('sw-sup-note').value
+          };
+        }
+      }).then(function(result) {
+        if (result.isConfirmed && result.value) {
+          callBackend('deleteSupplyAdmin', { passcode: ADMIN_PASSCODE, supplyId: supplyId }, function(res) {
+            Swal.fire(res.success ? 'สำเร็จ' : 'ผิดพลาด', res.message, res.success ? 'success' : 'error');
+            if (res.success) refreshAdminData();
+          });
+        }
+      });
+    }
+
+    function deleteSupplyById(supplyId) {
+      Swal.fire({
+        title: 'ยืนยันลบรายการสิ่งของ?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#e11d48',
+        confirmButtonText: 'ลบข้อมูล',
+        cancelButtonText: 'ยกเลิก'
+      }).then(function(r) {
+        if (r.isConfirmed) {
+          google.script.run.withSuccessHandler(function(res) {
+            Swal.fire(res.success ? 'ลบแล้ว' : 'ผิดพลาด', res.message, res.success ? 'success' : 'error');
+            if (res.success) refreshAdminData();
+          });
+        }
+      });
+    }
+
+    function toDriveThumbUrl(url) {
+      var u = String(url || '').trim();
+      var m = u.match(/\/d\/([a-zA-Z0-9_-]+)/);
+      if (m) return 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w800';
+      var m2 = u.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+      if (m2) return 'https://drive.google.com/thumbnail?id=' + m2[1] + '&sz=w800';
+      return u;
+    }
+
+    function renderVolFormPage(pageRows, startNum, orgName, logoHtml, round, isFirstPage, totalPages, pageIdx) {
+      var locVal = round ? escapeHtml(round.Location) : '............................................................';
+      var subVal = round ? escapeHtml(round.Subdistrict) : '........................................';
+      var dateVal = round ? escapeHtml(formatThaiDateRange(round)) : '................................................................';
+      var pageBreak = pageIdx > 0 ? 'page-break-before: always;' : '';
+
+      var topSection = '';
+      if (isFirstPage) {
+        topSection =
+          '<div style="display:flex; align-items:flex-start; gap:14px; margin-bottom:6px;">' +
+          '<div style="width:125px; text-align:center; flex-shrink:0;">' +
+          (logoHtml ? logoHtml : '<div style="height:68px;"></div>') +
+          '<div style="font-size:10px; font-weight:600; margin-top:2px;">มูลนิธิเลขทะเบียนลำดับที่ 8020</div>' +
+          '</div>' +
+          '<div style="flex:1; text-align:center; padding-top:2px;">' +
+          '<div style="font-size:13px;">โปรดลงนามก่อนออกเดินทางและรีบจัดส่งมายังสำนักงานมูลนิธิ พอ.สว. โดยด่วน</div>' +
+          '<div style="font-size:20px; font-weight:bold; margin-top:4px;">รายงานก่อนออกเดินทางไปปฏิบัติงาน พอ.สว.</div>' +
+          '</div>' +
+          '</div>' +
+          '<div style="text-align:right; font-size:13px; line-height:1.65; margin-bottom:4px;">' +
+          '<div>พอ.สว. ประจำจังหวัด <span style="display:inline-block; min-width:190px; border-bottom:1px dotted #000; text-align:center;">ตาก</span></div>' +
+          '<div>วันที่ <span style="display:inline-block; min-width:255px; border-bottom:1px dotted #000; text-align:center;">' + dateVal + '</span></div>' +
+          '</div>' +
+          '<div style="font-size:13px; line-height:1.75; margin-bottom:8px;">' +
+          '<div>สถานที่ตั้งหน่วยที่กำหนดไว้ บ้าน <span style="display:inline-block; min-width:210px; border-bottom:1px dotted #000; text-align:center;">' + locVal + '</span> ' +
+          'ตำบล <span style="display:inline-block; min-width:110px; border-bottom:1px dotted #000; text-align:center;">' + subVal + '</span> ' +
+          'อำเภอ <span style="display:inline-block; min-width:105px; border-bottom:1px dotted #000; text-align:center;">ท่าสองยาง</span></div>' +
+          '<div>จังหวัด <span style="display:inline-block; min-width:155px; border-bottom:1px dotted #000; text-align:center;">ตาก</span> ' +
+          'เดินทางโดย <span style="display:inline-block; min-width:170px; border-bottom:1px dotted #000;"></span> ' +
+          'ของ <span style="display:inline-block; min-width:155px; border-bottom:1px dotted #000;"></span></div>' +
+          '</div>';
+      } else {
+        topSection = '<div style="text-align:right; font-size:12px; font-weight:600; margin-bottom:4px;">แบบ 3/4</div>';
+      }
+
+      var rowsHtml = '';
+      for (var r = 0; r < 26; r++) {
+        var rowNum = startNum + r;
+        var item = pageRows[r];
+        var nameTxt = item ? escapeHtml(item.Prefix + item.Full_Name) : '';
+        var posTxt = item ? escapeHtml(item.Position + (item.Affiliation ? ' (' + item.Affiliation + ')' : '')) : '';
+        rowsHtml +=
+          '<tr>' +
+          '<td style="border-top:1px solid #000; border-bottom:1px solid #000; border-right:1px solid #000; padding:3px 6px; height:23px;">' + rowNum + '. ' + nameTxt + '</td>' +
+          '<td style="border-top:1px solid #000; border-bottom:1px solid #000; border-right:1px solid #000; padding:3px 6px; text-align:center;">' + posTxt + '</td>' +
+          '<td style="border-top:1px solid #000; border-bottom:1px solid #000; padding:3px 6px;"></td>' +
+          '</tr>';
+      }
+
+      var footerHtml =
+        '<div style="display:flex; justify-content:space-between; margin-top:18px; font-size:13px; padding:0 12px;">' +
+        '<div style="text-align:center;">' +
+        '<div>ลงชื่อ .................................................... หัวหน้าคณะ</div>' +
+        '<div style="margin-top:8px;">(....................................................)</div>' +
+        '</div>' +
+        '<div style="text-align:center;">' +
+        '<div>ลงชื่อ .................................................... ผู้ส่ง</div>' +
+        '<div style="margin-top:8px;">(....................................................)</div>' +
+        '<div style="font-size:12px; margin-top:2px;">(โปรดพลิกมีต่อหน้าหลัง)</div>' +
+        '</div>' +
+        '</div>';
+
+      return '<div style="' + pageBreak + '">' +
+        topSection +
+        '<table style="width:100%; border-collapse:collapse; font-size:12.5px; border-top:1.5px solid #000; border-bottom:1.5px solid #000;">' +
+        '<thead><tr>' +
+        '<th style="border-bottom:1.5px solid #000; border-right:1px solid #000; padding:5px; width:38%; text-align:center; font-weight:bold;">นาม</th>' +
+        '<th style="border-bottom:1.5px solid #000; border-right:1px solid #000; padding:5px; width:30%; text-align:center; font-weight:bold;">ตำแหน่งหน้าที่</th>' +
+        '<th style="border-bottom:1.5px solid #000; padding:5px; width:32%; text-align:center; font-weight:bold;">ลายเซ็น</th>' +
+        '</tr></thead>' +
+        '<tbody>' + rowsHtml + '</tbody>' +
+        '</table>' +
+        footerHtml +
+        '</div>';
+    }
+
+    function printA4Report(type) {
+      var roundId = document.getElementById('admin-round-filter').value;
+      var round = ADMIN_DATA.rounds.find(function(r) { return r.Round_ID === roundId; });
+      var logoHtml = ADMIN_DATA.settings.logoUrl ? '<img src="' + escapeHtml(ADMIN_DATA.settings.logoUrl) + '" style="height:68px; width:auto; margin:0 auto; object-fit:contain;">' : '';
+      var printArea = document.getElementById('print-area');
+      var dynPage = document.getElementById('dynamic-print-page');
+
+      if (type === 'volunteers') {
+        if (dynPage) {
+          dynPage.textContent = '@media print { @page { size: A4 portrait; margin: 0; } #print-area { padding: 10mm 14mm !important; } }';
+        }
+        var list = ADMIN_DATA.volunteers.filter(function(v) { return (roundId === 'ALL' || v.Round_ID === roundId) && v.Status !== 'ยกเลิก'; });
+        var totalPages = Math.max(2, Math.ceil(list.length / 26));
+        var pagesHtml = '';
+        for (var p = 0; p < totalPages; p++) {
+          var chunk = list.slice(p * 26, (p + 1) * 26);
+          pagesHtml += renderVolFormPage(chunk, (p * 26) + 1, ADMIN_DATA.settings.orgName, logoHtml, round, p === 0, totalPages, p);
+        }
+        printArea.innerHTML = pagesHtml;
+      } else if (type === 'photos') {
+        if (dynPage) {
+          dynPage.textContent = '@media print { @page { size: A4 portrait; margin: 0; } #print-area { padding: 12mm 14mm !important; } }';
+        }
+        var photoPats = ADMIN_DATA.patients.filter(function(p) {
+          return (roundId === 'ALL' || p.Round_ID === roundId) && p.Photo_URLs && String(p.Photo_URLs).trim() !== '';
+        });
+        if (!photoPats.length) {
+          Swal.fire('ยังไม่มีรูปถ่ายเยี่ยมบ้าน', 'กรุณาอัปโหลดรูปภาพในปุ่ม "ผลเยี่ยม/รูป" ของผู้ป่วยก่อนพิมพ์รายงานภาพถ่าย', 'info');
+          return;
+        }
+        var rText = round ? ('รอบที่ ' + round.Round_No + ' ' + formatThaiDateRange(round) + ' ณ ' + round.Location + ' ต.' + round.Subdistrict) : 'ทุกรอบออกหน่วย';
+        var cardsHtml = photoPats.map(function(p, idx) {
+          var imgs = p.Photo_URLs.split(',').map(function(u) { return u.trim(); }).filter(Boolean).slice(0, 3);
+          var imgsHtml = imgs.map(function(u) {
+            return '<div style="flex:1; border:1px solid #cbd5e1; border-radius:6px; overflow:hidden; height:155px; background:#f8fafc;">' +
+              '<img src="' + escapeHtml(toDriveThumbUrl(u)) + '" style="width:100%; height:100%; object-fit:cover;">' +
+              '</div>';
+          }).join('');
+          var pb = (idx > 0 && idx % 3 === 0) ? 'page-break-before: always;' : '';
+          return '<div style="border:1px solid #334155; border-radius:8px; padding:10px; margin-bottom:12px; page-break-inside:avoid; ' + pb + '">' +
+            '<div style="font-size:13px; font-weight:bold; margin-bottom:4px;">' + (idx + 1) + '. ' + escapeHtml(p.Patient_Name) + ' (อายุ ' + escapeHtml(p.Age) + ' ปี) — ' + escapeHtml(p.Address_Village) + ' ต.' + escapeHtml(p.Subdistrict) + '</div>' +
+            '<div style="font-size:12px; margin-bottom:6px;"><b>สภาพปัญหา:</b> ' + escapeHtml(p.Patient_Group) + ' ' + escapeHtml(p.Underlying_Disease) + ' | <b>ผลการเยี่ยม:</b> ' + escapeHtml(p.Visit_Status) + (p.Visit_Note ? ' (' + escapeHtml(p.Visit_Note) + ')' : '') + '</div>' +
+            '<div style="display:flex; gap:8px;">' + imgsHtml + '</div>' +
+            '</div>';
+        }).join('');
+        printArea.innerHTML =
+          '<div style="display:flex; align-items:center; justify-content:center; gap:16px; margin-bottom:14px;">' +
+          (logoHtml ? '<div>' + logoHtml + '</div>' : '') +
+          '<div style="text-align:center;">' +
+          '<div style="font-size:17px; font-weight:bold;">รายงานภาพถ่ายกิจกรรมเยี่ยมบ้านผู้ป่วยกลุ่มเปราะบางและผู้ด้อยโอกาส (พอ.สว.)</div>' +
+          '<div style="font-size:14px;">' + escapeHtml(ADMIN_DATA.settings.orgName) + ' — ' + escapeHtml(rText) + '</div>' +
+          '</div></div>' + cardsHtml;
+        setTimeout(function() { window.print(); }, 600);
+        return;
+      } else {
+        if (dynPage) {
+          dynPage.textContent = '@media print { @page { size: A4 landscape; margin: 0; } #print-area { padding: 12mm 14mm !important; } }';
+        }
+        var plist = ADMIN_DATA.patients.filter(function(p) { return roundId === 'ALL' || p.Round_ID === roundId; });
+        var locLine = round ? ('ณ ' + escapeHtml(round.Location) + ' ตำบล' + escapeHtml(round.Subdistrict) + ' อำเภอท่าสองยาง จังหวัดตาก') : 'อำเภอท่าสองยาง จังหวัดตาก';
+        var dateLine = round ? escapeHtml(formatThaiDateRange(round)) : 'ประจำเดือน';
+
+        printArea.innerHTML =
+          '<div style="display:flex; align-items:center; justify-content:center; gap:20px; margin-bottom:12px;">' +
+          (logoHtml ? '<div style="flex-shrink:0;">' + logoHtml + '</div>' : '') +
+          '<div style="text-align:center; line-height:1.45;">' +
+          '<div style="font-size:17px; font-weight:bold;">ข้อมูลเพื่อลงเยี่ยมบ้านกลุ่มเปราะบางและผู้ด้อยโอกาสทางด้านสังคม อำเภอท่าสองยาง จังหวัดตาก</div>' +
+          '<div style="font-size:15px; font-weight:600;">หน่วยแพทย์อาสาสมัครสมเด็จพระศรีนครินทราบรมราชชนนี อำเภอท่าสองยาง</div>' +
+          '<div style="font-size:14px;">' + locLine + '</div>' +
+          '<div style="font-size:14px;">' + dateLine + '</div>' +
+          '</div></div>' +
+          '<table style="width:100%; border-collapse:collapse; font-size:12px; line-height:1.4;">' +
+          '<thead><tr style="background:#ffffff;">' +
+          '<th style="border:1px solid #000; padding:6px 4px; width:40px; text-align:center;">ลำดับ</th>' +
+          '<th style="border:1px solid #000; padding:6px; width:135px; text-align:center;">ชื่อ-นามสกุล</th>' +
+          '<th style="border:1px solid #000; padding:6px 4px; width:40px; text-align:center;">อายุ</th>' +
+          '<th style="border:1px solid #000; padding:6px; width:140px; text-align:center;">ที่อยู่</th>' +
+          '<th style="border:1px solid #000; padding:6px; width:115px; text-align:center;">สภาพปัญหา/<br>การวินิจฉัย</th>' +
+          '<th style="border:1px solid #000; padding:6px; width:130px; text-align:center;">ประวัติการมา<br>โรงพยาบาลท่าสองยาง</th>' +
+          '<th style="border:1px solid #000; padding:6px; width:105px; text-align:center;">สภาพความเป็นอยู่/<br>ผู้ดูแล</th>' +
+          '<th style="border:1px solid #000; padding:6px; text-align:center;">ความต้องการช่วยเหลือ</th>' +
+          '</tr></thead><tbody>' +
+          plist.map(function(p, i) {
+            var fullAddr = escapeHtml(p.Address_Village) + ' ตำบล' + escapeHtml(p.Subdistrict) + ' อำเภอท่าสองยาง จังหวัดตาก';
+            var prob = escapeHtml(p.Patient_Group) + (p.Underlying_Disease ? '<br>' + escapeHtml(p.Underlying_Disease) : '');
+            return '<tr style="vertical-align:top;">' +
+              '<td style="border:1px solid #000; padding:6px 4px; text-align:center;">' + (i + 1) + '.</td>' +
+              '<td style="border:1px solid #000; padding:6px;">' + escapeHtml(p.Patient_Name) + '</td>' +
+              '<td style="border:1px solid #000; padding:6px 4px; text-align:center;">' + escapeHtml(p.Age) + '</td>' +
+              '<td style="border:1px solid #000; padding:6px;">' + fullAddr + '</td>' +
+              '<td style="border:1px solid #000; padding:6px;">' + prob + '</td>' +
+              '<td style="border:1px solid #000; padding:6px;">' + escapeHtml(p.Hospital_History || '-') + '</td>' +
+              '<td style="border:1px solid #000; padding:6px;">' + escapeHtml(p.Living_Caregiver || '-') + '</td>' +
+              '<td style="border:1px solid #000; padding:6px; white-space:pre-line;">' + escapeHtml(p.Assistance_Needs || '-') + '</td></tr>';
+          }).join('') +
+          '</tbody></table>';
+      }
+      window.print();
+    }
+
+    function exportCsv(type) {
+      var roundId = document.getElementById('admin-round-filter').value;
+      var list = ADMIN_DATA.patients.filter(function(p) { return roundId === 'ALL' || p.Round_ID === roundId; });
+      var headers = ['Patient_ID','Round_Label','Patient_Name','Age','CID','Phone','Address_Village','Subdistrict','GPS_Coords','Map_Link','Patient_Group','Underlying_Disease','Hospital_History','Living_Caregiver','Assistance_Needs','Reporter_Name','Reporter_Agency','Visit_Status','Visit_Note','Photo_URLs'];
+      var csvRows = [headers.join(',')];
+      list.forEach(function(p) {
+        csvRows.push(headers.map(function(h) { return '"' + String(p[h] || '').replace(/"/g, '""') + '"'; }).join(','));
+      });
+      var blob = new Blob(['\uFEFF' + csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'PMMV_HomeVisit_' + roundId + '.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function getCategoryEmoji(cat) {
+      var c = String(cat || '');
+      if (c.indexOf('แพทย์') !== -1 && c.indexOf('ทันต') === -1 && c.indexOf('ผู้ช่วย') === -1) return '🩺';
+      if (c.indexOf('ทันต') !== -1) return '🦷';
+      if (c.indexOf('เภสัช') !== -1) return '💊';
+      if (c.indexOf('พยาบาล') !== -1) return '👩‍⚕️';
+      if (c.indexOf('ขับรถ') !== -1) return '🚐';
+      if (c.indexOf('สนับสนุน') !== -1) return '🤝';
+      return '🏥';
+    }
+
+    function searchMember(e) {
+      if (e) e.preventDefault();
+      var input = document.getElementById('member-search-input');
+      var q = String(input.value || '').trim();
+      if (q.length < 2) {
+        if (typeof Swal !== 'undefined') {
+          Swal.fire({
+            icon: 'warning',
+            title: 'พิมพ์คำค้นหาก่อนน้า 😊',
+            text: 'กรุณาระบุชื่อ นามสกุล หรือเลขสมาชิกอย่างน้อย 2 ตัวอักษรค่ะ/ครับ ✍️',
+            confirmButtonColor: '#007a3d',
+            confirmButtonText: 'ตกลงค่ะ/ครับ'
+          });
+        } else {
+          alert('กรุณาระบุชื่อ นามสกุล หรือเลขสมาชิกอย่างน้อย 2 ตัวอักษร');
+        }
+        return;
+      }
+
+      if (!hasAnyBackend()) {
+        notify('info', 'ต้องใช้งานผ่าน Web App', 'กรุณา Deploy โค้ดบน Google Apps Script และนำเข้าข้อมูลในชีต Member_Registry ก่อนใช้งาน');
+        return;
+      }
+
+      var btn = document.getElementById('btn-member-search');
+      var wrap = document.getElementById('member-search-results');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>กำลังค้นหา...</span>';
+      wrap.innerHTML = '<div class="p-8 text-center text-sm text-slate-500"><i class="fa-solid fa-spinner fa-spin text-2xl text-[#007a3d] mb-2"></i><div>กำลังค้นหาข้อมูลในทะเบียนสมาชิก พอ.สว. จังหวัดตาก... 🔎</div></div>';
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          btn.disabled = false;
+          btn.innerHTML = '<span>🔍</span> <span>ค้นหาข้อมูล</span>';
+          if (!res || !res.success) {
+            wrap.innerHTML = '<div class="rounded-2xl bg-amber-50 border border-amber-200 p-6 text-center text-sm text-amber-800"><div class="text-3xl mb-2">🥺</div><div>' + escapeHtml((res && res.message) || 'ไม่สามารถค้นหาได้') + '</div></div>';
+            return;
+          }
+          if (!res.results || res.results.length === 0) {
+            wrap.innerHTML =
+              '<div class="rounded-2xl bg-slate-50 border border-slate-200 p-6 text-center">' +
+              '<div class="text-4xl mb-2">🥺🔍</div>' +
+              '<div class="font-semibold text-slate-700">ไม่พบข้อมูลสมาชิกที่ตรงกับ "' + escapeHtml(q) + '"</div>' +
+              '<div class="text-xs text-slate-500 mt-1">ลองตรวจสอบตัวสะกด หรือค้นหาเฉพาะชื่อจริง นามสกุล หรือเลขประจำตัวสมาชิกดูนะคะ/ครับ 💡</div>' +
+              '</div>';
+            if (typeof Swal !== 'undefined') {
+              Swal.fire({
+                icon: 'info',
+                title: 'ไม่พบข้อมูลที่ค้นหา 🥺',
+                html: '<div class="text-sm">ไม่พบรายชื่อหรือเลขสมาชิก <b>"' + escapeHtml(q) + '"</b><br><span class="text-xs text-slate-500">ลองพิมพ์เฉพาะชื่อจริง นามสกุล หรือเลขสมาชิกใหม่อีกครั้งนะคะ/ครับ 🔍💡</span></div>',
+                confirmButtonColor: '#007a3d',
+                confirmButtonText: 'ลองค้นหาใหม่ 😊'
+              });
+            }
+            return;
+          }
+
+          if (typeof Swal !== 'undefined') {
+            Swal.fire({
+              icon: 'success',
+              title: 'เย้! พบข้อมูลสมาชิกแล้ว 🎉',
+              html: '<div class="text-sm">พบข้อมูลตรงกับคำค้นหา <b>' + res.totalMatches + '</b> รายการค่ะ/ครับ 💚<br><span class="text-xs text-slate-500">ขอขอบคุณที่ร่วมเสียสละออกหน่วยแพทย์อาสา พอ.สว. นะคะ/ครับ ✨</span></div>',
+              confirmButtonColor: '#007a3d',
+              confirmButtonText: 'ดูข้อมูลเลย 😊',
+              timer: 3500,
+              timerProgressBar: true
+            });
+          }
+
+          renderMemberResults(res);
+      }, function(err) {
+        btn.disabled = false;
+        btn.innerHTML = '<span>🔍</span> <span>ค้นหาข้อมูล</span>';
+        notify('error', 'เกิดข้อผิดพลาด 😢', formatGasError(err));
+      });
+    }
+
+    function renderAwardBadge(emoji, label, dateVal) {
+      var hasVal = String(dateVal || '').trim() !== '';
+      if (hasVal) {
+        return '<div class="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 flex items-center justify-between gap-2">' +
+          '<div class="text-xs font-medium text-emerald-900 flex items-center gap-1.5"><span>' + emoji + '</span><span>' + escapeHtml(label) + '</span></div>' +
+          '<span class="text-[11px] font-semibold text-emerald-700 bg-white px-2 py-0.5 rounded-full border border-emerald-200">✅ ' + escapeHtml(dateVal) + '</span>' +
+          '</div>';
+      }
+      return '<div class="rounded-xl bg-slate-50 border border-slate-200/80 px-3 py-2 flex items-center justify-between gap-2 opacity-75">' +
+        '<div class="text-xs text-slate-500 flex items-center gap-1.5"><span>' + emoji + '</span><span>' + escapeHtml(label) + '</span></div>' +
+        '<span class="text-[11px] text-slate-400">- ยังไม่มีข้อมูล -</span>' +
+        '</div>';
+    }
+
+    function renderMemberResults(res) {
+      var wrap = document.getElementById('member-search-results');
+      var headerBar = '<div class="flex flex-wrap items-center justify-between gap-2 mb-3 text-xs text-slate-600">' +
+        '<span>🎉 พบข้อมูลทั้งหมด <b class="text-[#007a3d] text-sm">' + res.totalMatches + '</b> รายการ' + (res.truncated ? ' (แสดง 50 รายการแรก กรุณาพิมพ์ชื่อให้เจาะจงขึ้น)' : '') + '</span>' +
+        '<span class="text-emerald-700 font-medium">💚 ทะเบียนอาสาสมัคร พอ.สว. จังหวัดตาก</span>' +
+        '</div>';
+
+      var cards = res.results.map(function(m) {
+        var emoji = getCategoryEmoji(m.Category);
+        var countNum = parseInt(m.Service_Count || '0', 10) || 0;
+        var praise = countNum >= 10 ? 'สุดยอดอาสาสมัครตัวอย่าง! 🏆✨' : (countNum >= 1 ? 'ขอบคุณที่ร่วมออกหน่วยนะคะ/ครับ 💚' : 'ยินดีต้อนรับสู่ครอบครัว พอ.สว. 🌱');
+        return '<div class="rounded-2xl border border-green-200 bg-white shadow-sm overflow-hidden mb-4">' +
+          '<div class="bg-gradient-to-r from-[#007a3d] to-[#006837] text-white px-4 py-3 flex flex-wrap items-center justify-between gap-2">' +
+            '<div class="flex items-center gap-2.5">' +
+              '<div class="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center text-xl">' + emoji + '</div>' +
+              '<div>' +
+                '<div class="font-semibold text-base leading-tight">' + escapeHtml(m.Full_Name) + '</div>' +
+                '<div class="text-xs text-green-100 mt-0.5">' + escapeHtml(m.Category || 'อาสาสมัคร พอ.สว.') + ' • ลำดับที่ ' + escapeHtml(m.Seq || '-') + '</div>' +
+              '</div>' +
+            '</div>' +
+            '<span class="text-xs bg-white/20 text-white px-3 py-1 rounded-full font-medium">' + praise + '</span>' +
+          '</div>' +
+          '<div class="p-4 space-y-3">' +
+            '<div class="grid grid-cols-1 md:grid-cols-3 gap-2.5 text-xs">' +
+              '<div class="rounded-xl bg-slate-50 border border-slate-200/80 p-3">' +
+                '<div class="text-slate-500 mb-0.5">🏥 สถานที่ทำงาน / สังกัด</div>' +
+                '<div class="font-medium text-slate-800 text-sm">' + escapeHtml(m.Workplace || '-') + '</div>' +
+              '</div>' +
+              '<div class="rounded-xl bg-slate-50 border border-slate-200/80 p-3">' +
+                '<div class="text-slate-500 mb-0.5">🆔 เลขประจำตัวสมาชิก</div>' +
+                '<div class="font-semibold text-[#006837] text-sm">ใหม่: ' + escapeHtml(m.New_ID || '-') + '</div>' +
+                '<div class="text-slate-500 mt-0.5">เดิม: ' + escapeHtml(m.Old_ID || '-') + '</div>' +
+              '</div>' +
+              '<div class="rounded-xl bg-green-50/70 border border-green-200 p-3">' +
+                '<div class="text-green-800 mb-0.5">🌟 ผลการปฏิบัติงานสะสม</div>' +
+                '<div class="font-bold text-[#007a3d] text-base">' + escapeHtml(m.Service_Count || '0') + ' ครั้ง</div>' +
+                '<div class="text-slate-600 mt-0.5">📅 ล่าสุด: ' + escapeHtml(m.Last_Service_Date || '-') + '</div>' +
+              '</div>' +
+            '</div>' +
+            '<div>' +
+              '<div class="text-xs font-semibold text-slate-700 mb-2 flex items-center gap-1.5"><span>🎁</span><span>ประวัติการได้รับของพระราชทาน (วันที่ได้รับ)</span></div>' +
+              '<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">' +
+                renderAwardBadge('🏅', 'เหรียญพระฯ / ร.9 / หนังสือธรรมะ', m.Royal_Book_Medal) +
+                renderAwardBadge('📌', 'เข็มเครื่องหมาย พอ.สว.', m.PMMV_Pin) +
+                renderAwardBadge('👑', 'เข็มพระนามาภิไธยย่อ สว.', m.Initial_Pin_SW) +
+                renderAwardBadge('🛡️', 'โล่พระราชทาน', m.Shield) +
+                renderAwardBadge('🎖️', 'เข็มกรรมการ / อนุกรรมการ', m.Committee_Pin) +
+              '</div>' +
+            '</div>' +
+            (m.Note ? '<div class="text-xs text-slate-600 bg-amber-50/70 border border-amber-200 rounded-xl px-3 py-2">📝 <b>หมายเหตุ:</b> ' + escapeHtml(m.Note) + '</div>' : '') +
+          '</div>' +
+        '</div>';
+      }).join('');
+
+      wrap.innerHTML = headerBar + cards;
+    }
+
+    function parseOptionList(raw) {
+      return String(raw || '')
+        .split(/[\r\n,]+/)
+        .map(function(s) { return s.trim(); })
+        .filter(function(s) { return s !== ''; });
+    }
+
+    function setupSearchableCombo(inputId, dropdownId, toggleBtnId, getOptionsFn) {
+      var input = document.getElementById(inputId);
+      var dropdown = document.getElementById(dropdownId);
+      var toggleBtn = document.getElementById(toggleBtnId);
+      if (!input || !dropdown || !toggleBtn) return;
+
+      function renderDropdown(filterText) {
+        var opts = getOptionsFn();
+        var q = String(filterText || '').toLowerCase().trim();
+        var filtered = q ? opts.filter(function(o) { return o.toLowerCase().indexOf(q) !== -1; }) : opts;
+
+        if (filtered.length === 0) {
+          dropdown.innerHTML =
+            '<div class="px-3.5 py-2.5 text-xs text-slate-500">' +
+            '✨ ไม่พบในรายการ — สามารถพิมพ์ <b class="text-[#007a3d]">"' + escapeHtml(filterText) + '"</b> ใช้ลงทะเบียนได้เลย' +
+            '</div>';
+        } else {
+          dropdown.innerHTML = filtered.map(function(o) {
+            return '<button type="button" data-val="' + escapeHtml(o) + '" class="combo-opt-btn w-full text-left px-3.5 py-2 hover:bg-green-50 text-slate-700 hover:text-[#006837] transition border-b border-slate-50 last:border-b-0 cursor-pointer">' + escapeHtml(o) + '</button>';
+          }).join('');
+          var btns = dropdown.querySelectorAll('.combo-opt-btn');
+          for (var i = 0; i < btns.length; i++) {
+            (function(b) {
+              b.addEventListener('mousedown', function(ev) {
+                ev.preventDefault();
+                input.value = b.getAttribute('data-val') || '';
+                dropdown.classList.add('hidden');
+              });
+            })(btns[i]);
+          }
+        }
+        dropdown.classList.remove('hidden');
+      }
+
+      input.addEventListener('focus', function() { renderDropdown(input.value); });
+      input.addEventListener('input', function() { renderDropdown(input.value); });
+      toggleBtn.addEventListener('click', function() {
+        if (dropdown.classList.contains('hidden')) {
+          input.focus();
+          renderDropdown('');
+        } else {
+          dropdown.classList.add('hidden');
+        }
+      });
+      document.addEventListener('click', function(ev) {
+        if (!input.contains(ev.target) && !dropdown.contains(ev.target) && !toggleBtn.contains(ev.target)) {
+          dropdown.classList.add('hidden');
+        }
+      });
+    }
+
+    function formatGasError(err) {
+      if (!err) return 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณารีเฟรชหน้าเว็บแล้วลองใหม่อีกครั้ง';
+      if (typeof err === 'string') return err || 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้';
+      if (err.message) return err.message;
+      try {
+        var s = String(err);
+        if (s && s !== '[object Object]') return s;
+        return JSON.stringify(err);
+      } catch (e) {
+        return 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณารีเฟรชหน้าเว็บแล้วลองใหม่อีกครั้ง';
+      }
+    }
+
+    function escapeHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+  </script>
+</body>
+</html>

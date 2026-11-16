@@ -570,6 +570,45 @@
           </div>
         </div>
 
+        <!-- Admin Offline Visit Sync Panel -->
+        <div id="adm-visit-offline-panel" class="hidden rounded-2xl bg-amber-50 border border-amber-200 p-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+            <div>
+              <div class="text-sm font-semibold text-amber-900 flex items-center gap-1.5">
+                <span>📦</span>
+                <span>ผลเยี่ยมบ้านที่บันทึกออฟไลน์ค้างซิงค์ (<span id="adm-visit-offline-count">0</span> รายการ)</span>
+              </div>
+              <div class="text-xs text-amber-700 mt-0.5">เมื่อกลับมามีสัญญาณอินเทอร์เน็ต กดปุ่มซิงค์เพื่ออัปเดตสถานะและอัปโหลดรูปเข้า Google Drive</div>
+            </div>
+            <button type="button" id="btn-sync-adm-visits" class="bg-[#007a3d] hover:bg-[#006837] text-white text-xs font-medium px-4 py-2 rounded-xl shadow-sm transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap">
+              <span>🔄</span>
+              <span>ซิงค์ผลเยี่ยมบ้านขึ้นระบบ</span>
+            </button>
+          </div>
+          <div id="adm-visit-offline-list" class="space-y-2"></div>
+        </div>
+
+        <!-- Quick Field-Visit Selector (Mobile & Offline friendly) -->
+        <div class="bg-white rounded-2xl shadow-sm border border-green-200 p-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+            <div>
+              <h3 class="text-sm font-semibold text-[#006837] flex items-center gap-1.5">
+                <span>📝</span>
+                <span>บันทึกผลขณะลงเยี่ยมบ้าน (เลือกชื่อผู้ป่วยแล้วพิมพ์ผล/แนบรูปได้เลย)</span>
+              </h3>
+              <p class="text-xs text-slate-500">ใช้งานได้ทั้งตอนออนไลน์และออฟไลน์ (หากเข้า Admin ไว้ 1 ครั้งก่อนขึ้นพื้นที่)</p>
+            </div>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+            <input type="text" id="adm-quick-pat-search" placeholder="🔍 พิมพ์ค้นหาชื่อผู้ป่วย / หมู่บ้าน..." class="rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#007a3d]">
+            <select id="adm-quick-pat-select" class="rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm bg-white outline-none focus:ring-2 focus:ring-[#007a3d]"></select>
+            <button type="button" id="btn-adm-quick-visit" class="moph-btn font-medium px-4 py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 cursor-pointer">
+              <i class="fa-solid fa-pen-to-square"></i>
+              <span>บันทึกผลเยี่ยม / แนบรูป</span>
+            </button>
+          </div>
+        </div>
+
         <!-- KPI Cards -->
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div class="bg-white p-4 rounded-2xl border border-green-100 shadow-sm">
@@ -845,7 +884,7 @@
 
       document.getElementById('map-sub-filter').addEventListener('change', renderPatientMap);
       document.getElementById('form-admin-login').addEventListener('submit', loginAdmin);
-      document.getElementById('admin-round-filter').addEventListener('change', renderAdminTables);
+      document.getElementById('admin-round-filter').addEventListener('change', function() { renderAdminTables(); populateQuickVisitSelect(); });
       document.getElementById('btn-adm-add-round').addEventListener('click', function() { openRoundModal(null); });
       document.getElementById('btn-adm-send-line').addEventListener('click', sendSummaryLineNow);
       document.getElementById('btn-adm-add-pat').addEventListener('click', function() { openPatientModal(null); });
@@ -856,6 +895,9 @@
       document.getElementById('btn-adm-add-sup').addEventListener('click', function() { openSupplyModal(null); });
       document.getElementById('btn-adm-export').addEventListener('click', function() { exportCsv('patients'); });
       document.getElementById('btn-adm-settings').addEventListener('click', openSettingsModal);
+      document.getElementById('adm-quick-pat-search').addEventListener('input', populateQuickVisitSelect);
+      document.getElementById('btn-adm-quick-visit').addEventListener('click', openSelectedQuickVisit);
+      document.getElementById('btn-sync-adm-visits').addEventListener('click', syncAdminVisitQueue);
     }
 
     function resolveInitialTab() {
@@ -1815,38 +1857,103 @@
       }
     }
 
+    var ADM_CACHE_DATA_KEY = 'pmmv_cached_admin_v1';
+    var ADM_CACHE_PASS_KEY = 'pmmv_cached_admin_pass_v1';
+    var ADM_VISIT_QUEUE_KEY = 'pmmv_visit_offline_queue_v1';
+
+    function encodePassSimple(p) {
+      try { return btoa(unescape(encodeURIComponent(String(p || '')))); } catch (e) { return String(p || ''); }
+    }
+
+    function tryUnlockOfflineAdmin(pass) {
+      try {
+        var savedPass = localStorage.getItem(ADM_CACHE_PASS_KEY);
+        var savedData = localStorage.getItem(ADM_CACHE_DATA_KEY);
+        if (!savedPass || !savedData) return false;
+        if (encodePassSimple(pass) !== savedPass) return false;
+        ADMIN_PASSCODE = pass;
+        ADMIN_DATA = JSON.parse(savedData);
+        document.getElementById('admin-login-box').classList.add('hidden');
+        document.getElementById('admin-panel').classList.remove('hidden');
+        populateAdminRoundFilter();
+        renderAdminTables();
+        renderAdminVisitOfflineQueue();
+        populateQuickVisitSelect();
+        if (typeof Swal !== 'undefined') {
+          Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'info',
+            title: '🟠 เข้าสู่ระบบ Admin ออฟไลน์แล้ว',
+            showConfirmButton: false,
+            timer: 3000
+          });
+        }
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
     function loginAdmin(e) {
       e.preventDefault();
+      var pass = document.getElementById('admin-passcode-input').value;
+
+      if (!navigator.onLine) {
+        if (!tryUnlockOfflineAdmin(pass)) {
+          notify('warning', 'ไม่สามารถเข้าใช้งานออฟไลน์ได้', 'กรุณาเข้าสู่ระบบ Admin ตอนมีอินเทอร์เน็ตอย่างน้อย 1 ครั้งก่อนลงพื้นที่ (หรือตรวจสอบรหัสผ่าน)');
+        }
+        return;
+      }
+
       if (!hasAnyBackend()) {
         notify('info', 'ต้องใช้งานผ่าน Web App', 'กรุณา Deploy โค้ดนี้บน Google Apps Script ก่อนเข้าสู่ระบบแอดมิน');
         return;
       }
-      var pass = document.getElementById('admin-passcode-input').value;
+
       Swal.fire({ title: 'กำลังตรวจสอบ...', allowOutsideClick: false, didOpen: function() { Swal.showLoading(); } });
       callBackend('verifyAdmin', { passcode: pass }, function(res) {
           Swal.close();
-          if (res.success) {
+          if (res && res.success) {
             ADMIN_PASSCODE = pass;
             ADMIN_DATA = res;
+            try {
+              localStorage.setItem(ADM_CACHE_PASS_KEY, encodePassSimple(pass));
+              localStorage.setItem(ADM_CACHE_DATA_KEY, JSON.stringify(res));
+            } catch (err) {}
             document.getElementById('admin-login-box').classList.add('hidden');
             document.getElementById('admin-panel').classList.remove('hidden');
             populateAdminRoundFilter();
             renderAdminTables();
+            renderAdminVisitOfflineQueue();
+            populateQuickVisitSelect();
           } else {
-            notify('error', 'รหัสผ่านไม่ถูกต้อง', res.message);
+            notify('error', 'รหัสผ่านไม่ถูกต้อง', (res && res.message) || 'รหัสผ่านไม่ถูกต้อง');
           }
         }, function(err) {
           Swal.close();
-          notify('error', 'เกิดข้อผิดพลาด', formatGasError(err));
+          if (!tryUnlockOfflineAdmin(pass)) {
+            notify('error', 'เกิดข้อผิดพลาด', formatGasError(err));
+          }
         });
     }
 
     function refreshAdminData() {
+      if (!navigator.onLine) {
+        populateAdminRoundFilter();
+        renderAdminTables();
+        renderAdminVisitOfflineQueue();
+        populateQuickVisitSelect();
+        return;
+      }
       callBackend('verifyAdmin', { passcode: ADMIN_PASSCODE }, function(res) {
-        if (res.success) {
+        if (res && res.success) {
           ADMIN_DATA = res;
+          try { localStorage.setItem(ADM_CACHE_DATA_KEY, JSON.stringify(res)); } catch (err) {}
           populateAdminRoundFilter();
           renderAdminTables();
+          renderAdminVisitOfflineQueue();
+          populateQuickVisitSelect();
           loadData();
         }
       });
@@ -2308,6 +2415,152 @@
       });
     }
 
+    function populateQuickVisitSelect() {
+      var sel = document.getElementById('adm-quick-pat-select');
+      var searchEl = document.getElementById('adm-quick-pat-search');
+      if (!sel || !ADMIN_DATA || !ADMIN_DATA.patients) return;
+      var roundEl = document.getElementById('admin-round-filter');
+      var roundId = roundEl ? roundEl.value : 'ALL';
+      var q = searchEl ? String(searchEl.value || '').toLowerCase().trim() : '';
+
+      var plist = ADMIN_DATA.patients.filter(function(p) {
+        var matchR = !roundId || roundId === 'ALL' || p.Round_ID === roundId;
+        var matchQ = !q || [p.Patient_Name, p.Address_Village, p.Subdistrict].some(function(s) {
+          return String(s || '').toLowerCase().indexOf(q) !== -1;
+        });
+        return matchR && matchQ;
+      });
+
+      if (!plist.length) {
+        sel.innerHTML = '<option value="">-- ไม่พบรายชื่อผู้ป่วยในรอบนี้ --</option>';
+        return;
+      }
+      sel.innerHTML = plist.map(function(p) {
+        var icon = p.Visit_Status === 'เยี่ยมแล้ว' ? '✅ ' : '⏳ ';
+        return '<option value="' + escapeHtml(p.Patient_ID) + '">' + icon + escapeHtml(p.Patient_Name) + ' (ต.' + escapeHtml(p.Subdistrict) + ')</option>';
+      }).join('');
+    }
+
+    function openSelectedQuickVisit() {
+      var sel = document.getElementById('adm-quick-pat-select');
+      if (!sel || !sel.value) {
+        notify('warning', 'กรุณาเลือกชื่อผู้ป่วย', 'เลือกรายชื่อผู้ป่วยที่ต้องการบันทึกผลเยี่ยมก่อนครับ');
+        return;
+      }
+      var p = (ADMIN_DATA.patients || []).find(function(item) { return item.Patient_ID === sel.value; });
+      if (p) openVisitModal(p);
+    }
+
+    function getAdminVisitQueue() {
+      try { return JSON.parse(localStorage.getItem(ADM_VISIT_QUEUE_KEY) || '[]'); } catch (e) { return []; }
+    }
+
+    function setAdminVisitQueue(arr) {
+      localStorage.setItem(ADM_VISIT_QUEUE_KEY, JSON.stringify(arr || []));
+      renderAdminVisitOfflineQueue();
+    }
+
+    function renderAdminVisitOfflineQueue() {
+      var q = getAdminVisitQueue();
+      var panel = document.getElementById('adm-visit-offline-panel');
+      var cnt = document.getElementById('adm-visit-offline-count');
+      var list = document.getElementById('adm-visit-offline-list');
+      if (!panel || !cnt || !list) return;
+      if (!q.length) {
+        panel.classList.add('hidden');
+        cnt.textContent = '0';
+        list.innerHTML = '';
+        return;
+      }
+      panel.classList.remove('hidden');
+      cnt.textContent = String(q.length);
+      list.innerHTML = q.map(function(item, idx) {
+        var imgCnt = (item.images && item.images.length) ? item.images.length : 0;
+        return '<div class="bg-white rounded-xl border border-amber-200 px-3 py-2 flex flex-wrap items-center justify-between gap-2 text-xs">' +
+          '<div>' +
+            '<div class="font-semibold text-slate-800">' + (idx + 1) + '. ' + escapeHtml(item.patientName || item.patientId) + ' <span class="text-[#007a3d]">[' + escapeHtml(item.visitStatus) + ']</span></div>' +
+            '<div class="text-[11px] text-slate-500">🕒 ' + escapeHtml(item.savedAt || '') + (imgCnt ? (' • 📷 ' + imgCnt + ' รูป') : '') + (item.visitNote ? (' • 📝 ' + escapeHtml(item.visitNote).substring(0, 40)) : '') + '</div>' +
+          '</div>' +
+          '<button type="button" onclick="deleteAdminVisitOfflineItem(' + idx + ')" class="text-rose-600 hover:bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200 text-[11px] font-medium cursor-pointer">ลบ</button>' +
+        '</div>';
+      }).join('');
+    }
+
+    function deleteAdminVisitOfflineItem(idx) {
+      var q = getAdminVisitQueue();
+      q.splice(idx, 1);
+      setAdminVisitQueue(q);
+    }
+
+    function queueAdminVisitOffline(p, val) {
+      try {
+        var q = getAdminVisitQueue();
+        var existingIdx = q.findIndex(function(x) { return x.patientId === p.Patient_ID; });
+        var entry = {
+          patientId: p.Patient_ID,
+          patientName: p.Patient_Name,
+          visitStatus: val.status,
+          visitNote: val.note,
+          images: val.images || [],
+          savedAt: new Date().toLocaleString('th-TH')
+        };
+        if (existingIdx !== -1) q[existingIdx] = entry; else q.push(entry);
+        setAdminVisitQueue(q);
+        p.Visit_Status = val.status;
+        p.Visit_Note = val.note;
+        try { localStorage.setItem(ADM_CACHE_DATA_KEY, JSON.stringify(ADMIN_DATA)); } catch (e) {}
+        renderAdminTables();
+        populateQuickVisitSelect();
+        Swal.fire({
+          icon: 'success',
+          title: 'บันทึกผลเยี่ยมออฟไลน์แล้ว 💾',
+          html: '<div class="text-sm">เก็บผลเยี่ยมของ <b>' + escapeHtml(p.Patient_Name) + '</b> พร้อมรูป ' + (entry.images.length) + ' รูปไว้ในเครื่องแล้ว<br><span class="text-xs text-slate-500">เมื่อกลับมามีเน็ต กดปุ่ม <b>ซิงค์ผลเยี่ยมบ้านขึ้นระบบ</b> ด้านบนได้เลยครับ</span></div>',
+          confirmButtonColor: '#007a3d'
+        });
+      } catch (err) {
+        notify('error', 'พื้นที่จัดเก็บเต็ม', 'ไม่สามารถบันทึกลงเครื่องได้ (ลองลดจำนวนรูปภาพที่แนบ)');
+      }
+    }
+
+    function syncAdminVisitQueue() {
+      if (!navigator.onLine) {
+        notify('warning', 'ยังไม่มีสัญญาณอินเทอร์เน็ต 🟠', 'กรุณารอให้เชื่อมต่ออินเทอร์เน็ตก่อนแล้วกดซิงค์อีกครั้งครับ');
+        return;
+      }
+      var q = getAdminVisitQueue();
+      if (!q.length) return;
+      var btn = document.getElementById('btn-sync-adm-visits');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>กำลังซิงค์...</span>';
+      var synced = 0;
+      var failed = [];
+
+      function nextItem() {
+        var cur = getAdminVisitQueue();
+        if (!cur.length) {
+          btn.disabled = false;
+          btn.innerHTML = '<span>🔄</span> <span>ซิงค์ผลเยี่ยมบ้านขึ้นระบบ</span>';
+          if (failed.length) {
+            setAdminVisitQueue(failed);
+            Swal.fire('ซิงค์สำเร็จ ' + synced + ' รายการ', 'มีค้างส่ง ' + failed.length + ' รายการ กรุณาลองใหม่อีกครั้ง', 'warning');
+          } else {
+            Swal.fire('ซิงค์ผลเยี่ยมครบแล้ว! 🎉', 'อัปเดตข้อมูลและอัปโหลดรูปทั้งหมด ' + synced + ' รายการเรียบร้อย', 'success');
+          }
+          refreshAdminData();
+          return;
+        }
+        var item = cur[0];
+        callBackend('updatePatientVisit', { passcode: ADMIN_PASSCODE, patientId: item.patientId, visitStatus: item.visitStatus, visitNote: item.visitNote, images: item.images || [] }, function(res) {
+          var rem = getAdminVisitQueue();
+          rem.shift();
+          setAdminVisitQueue(rem);
+          if (res && res.success) { synced++; } else { failed.push(item); }
+          nextItem();
+        }, function() { var rem = getAdminVisitQueue(); rem.shift(); setAdminVisitQueue(rem); failed.push(item); nextItem(); });
+      }
+      nextItem();
+    }
+
     function openVisitModal(p) {
       var stOptions = ['รอเยี่ยมบ้าน', 'เยี่ยมแล้ว', 'เลื่อน / ไม่พบผู้ป่วย'].map(function(st) {
         return '<option value="' + st + '"' + (p.Visit_Status === st ? ' selected' : '') + '>' + st + '</option>';
@@ -2317,15 +2570,16 @@
         title: 'อัปเดตผลเยี่ยมบ้าน: ' + p.Patient_Name,
         html:
           '<div class="space-y-2 text-left text-sm">' +
+          '<div class="text-xs bg-green-50 border border-green-200 rounded-lg p-2 text-slate-700"><b>ที่อยู่:</b> ' + escapeHtml(p.Address_Village) + ' ต.' + escapeHtml(p.Subdistrict) + '<br><b>ปัญหา/โรค:</b> ' + escapeHtml(p.Patient_Group) + ' ' + escapeHtml(p.Underlying_Disease) + '</div>' +
           '<label class="block text-xs text-slate-500">สถานะการเยี่ยมบ้าน</label>' +
           '<select id="sw-v-status" class="swal2-select !m-0 !w-full">' + stOptions + '</select>' +
           '<label class="block text-xs text-slate-500">บันทึกผลการเยี่ยมบ้าน / การช่วยเหลือ</label>' +
-          '<textarea id="sw-v-note" class="swal2-textarea !m-0 !w-full">' + escapeHtml(p.Visit_Note || '') + '</textarea>' +
-          '<label class="block text-xs text-slate-500">แนบรูปถ่ายเยี่ยมบ้าน (อัปโหลดลง Google Drive อัตโนมัติ สูงสุด 3 รูป)</label>' +
+          '<textarea id="sw-v-note" class="swal2-textarea !m-0 !w-full" placeholder="พิมพ์อาการ ผลการตรวจ และสิ่งของที่มอบให้...">' + escapeHtml(p.Visit_Note || '') + '</textarea>' +
+          '<label class="block text-xs text-slate-500">แนบรูปถ่ายเยี่ยมบ้าน / เอกสารประกอบ (สูงสุด 3 รูป)</label>' +
           '<input id="sw-v-photos" type="file" accept="image/*" capture="environment" multiple class="w-full text-xs border border-slate-200 rounded-lg p-2 bg-slate-50">' +
           '</div>',
         showCancelButton: true,
-        confirmButtonText: 'บันทึกและอัปโหลดรูป',
+        confirmButtonText: navigator.onLine ? 'บันทึกและอัปโหลดรูป' : '💾 บันทึกออฟไลน์ไว้ในเครื่อง',
         cancelButtonText: 'ยกเลิก',
         confirmButtonColor: '#007a3d',
         preConfirm: function() {
@@ -2344,11 +2598,15 @@
         }
       }).then(function(result) {
         if (result.isConfirmed && result.value) {
+          if (!navigator.onLine) {
+            queueAdminVisitOffline(p, result.value);
+            return;
+          }
           Swal.fire({ title: 'กำลังบันทึกและอัปโหลดรูป...', allowOutsideClick: false, didOpen: function() { Swal.showLoading(); } });
           callBackend('updatePatientVisit', { passcode: ADMIN_PASSCODE, patientId: p.Patient_ID, visitStatus: result.value.status, visitNote: result.value.note, images: result.value.images }, function(res) {
             Swal.fire(res.success ? 'สำเร็จ' : 'ผิดพลาด', res.message, res.success ? 'success' : 'error');
             if (res.success) refreshAdminData();
-          });
+          }, function() { Swal.close(); queueAdminVisitOffline(p, result.value); });
         }
       });
     }

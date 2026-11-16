@@ -725,7 +725,7 @@
         if (action === 'registerVolunteer') return runner.registerVolunteer(payload);
         if (action === 'registerPatient') return runner.registerPatient(payload);
         if (action === 'searchMemberRegistry') return runner.searchMemberRegistry(payload.query);
-        if (action === 'getAdminData') return runner.getAdminData(payload.passcode);
+        if (action === 'verifyAdmin') return runner.verifyAdmin(payload.passcode);
         if (action === 'saveRound') return runner.saveRound(payload.passcode, payload.roundObj);
         if (action === 'saveVolunteerAdmin') return runner.saveVolunteerAdmin(payload.passcode, payload.obj);
         if (action === 'deleteVolunteerAdmin') return runner.deleteVolunteerAdmin(payload.passcode, payload.regId);
@@ -1309,18 +1309,22 @@
         }
         var item = currentQueue[0];
         callBackend('registerVolunteer', item.payload, function(res) {
-          var remaining = getVolOfflineQueue();
-          remaining.shift();
-          setVolOfflineQueue(remaining);
-          if (res && res.success) { syncedCount++; } else { failedList.push(item); }
-          nextItem();
-        }, function() {
-          var remaining = getVolOfflineQueue();
-          remaining.shift();
-          setVolOfflineQueue(remaining);
-          failedList.push(item);
-          nextItem();
-        });
+            var remaining = getVolOfflineQueue();
+            remaining.shift();
+            setVolOfflineQueue(remaining);
+            if (res && res.success) {
+              syncedCount++;
+            } else {
+              failedList.push(item);
+            }
+            nextItem();
+          }, function() {
+            var remaining = getVolOfflineQueue();
+            remaining.shift();
+            setVolOfflineQueue(remaining);
+            failedList.push(item);
+            nextItem();
+          });
       }
 
       nextItem();
@@ -1349,39 +1353,39 @@
       btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึก...';
 
       callBackend('registerVolunteer', payload, function(res) {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> <span>ยืนยันลงทะเบียนออกหน่วย</span>';
-        if (res && res.success) {
-          Swal.fire({
-            icon: 'success',
-            title: 'ลงทะเบียนสำเร็จ!',
-            html: '<div class="text-sm">รหัสลงทะเบียน: <b class="text-[#007a3d]">' + escapeHtml(res.regId) + '</b><br>' + escapeHtml(res.roundLabel) + '</div>',
-            confirmButtonColor: '#007a3d'
-          });
-          document.getElementById('form-volunteer').reset();
-          loadData();
-        } else {
-          notify('warning', 'ไม่สามารถลงทะเบียนได้', (res && res.message) || 'เกิดข้อผิดพลาด');
-        }
-      }, function(err) {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> <span>ยืนยันลงทะเบียนออกหน่วย</span>';
-        if (typeof Swal !== 'undefined') {
-          Swal.fire({
-            icon: 'warning',
-            title: 'ส่งข้อมูลไม่สำเร็จ (สัญญาณอาจขัดข้อง)',
-            text: 'ต้องการบันทึกรายชื่อนี้เก็บไว้ในเครื่องแบบออฟไลน์เพื่อรอซิงค์ภายหลังหรือไม่? (' + formatGasError(err) + ')',
-            showCancelButton: true,
-            confirmButtonText: '💾 บันทึกลงเครื่องไว้ก่อน',
-            cancelButtonText: 'ยกเลิก',
-            confirmButtonColor: '#007a3d'
-          }).then(function(r) {
-            if (r.isConfirmed) pushVolToOfflineQueue(payload);
-          });
-        } else {
-          notify('error', 'เกิดข้อผิดพลาด', formatGasError(err));
-        }
-      });
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> <span>ยืนยันลงทะเบียนออกหน่วย</span>';
+          if (res.success) {
+            Swal.fire({
+              icon: 'success',
+              title: 'ลงทะเบียนสำเร็จ!',
+              html: '<div class="text-sm">รหัสลงทะเบียน: <b class="text-[#007a3d]">' + escapeHtml(res.regId) + '</b><br>' + escapeHtml(res.roundLabel) + '</div>',
+              confirmButtonColor: '#007a3d'
+            });
+            document.getElementById('form-volunteer').reset();
+            loadData();
+          } else {
+            notify('warning', 'ไม่สามารถลงทะเบียนได้', res.message);
+          }
+        }, function(err) {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> <span>ยืนยันลงทะเบียนออกหน่วย</span>';
+          if (typeof Swal !== 'undefined') {
+            Swal.fire({
+              icon: 'warning',
+              title: 'ส่งข้อมูลไม่สำเร็จ (สัญญาณอาจขัดข้อง)',
+              text: 'ต้องการบันทึกรายชื่อนี้เก็บไว้ในเครื่องแบบออฟไลน์เพื่อรอซิงค์ภายหลังหรือไม่? (' + formatGasError(err) + ')',
+              showCancelButton: true,
+              confirmButtonText: '💾 บันทึกลงเครื่องไว้ก่อน',
+              cancelButtonText: 'ยกเลิก',
+              confirmButtonColor: '#007a3d'
+            }).then(function(r) {
+              if (r.isConfirmed) pushVolToOfflineQueue(payload);
+            });
+          } else {
+            notify('error', 'เกิดข้อผิดพลาด', formatGasError(err));
+          }
+        });
     }
 
     var PAT_DRAFT_KEY = 'pmmv_patient_draft_v1';
@@ -1640,18 +1644,22 @@
         }
         var item = currentQueue[0];
         callBackend('registerPatient', item.payload, function(res) {
-          var remaining = getOfflineQueue();
-          remaining.shift();
-          setOfflineQueue(remaining);
-          if (res && res.success) { syncedCount++; } else { failedList.push(item); }
-          nextItem();
-        }, function() {
-          var remaining = getOfflineQueue();
-          remaining.shift();
-          setOfflineQueue(remaining);
-          failedList.push(item);
-          nextItem();
-        });
+            var remaining = getOfflineQueue();
+            remaining.shift();
+            setOfflineQueue(remaining);
+            if (res && res.success) {
+              syncedCount++;
+            } else {
+              failedList.push(item);
+            }
+            nextItem();
+          }, function() {
+            var remaining = getOfflineQueue();
+            remaining.shift();
+            setOfflineQueue(remaining);
+            failedList.push(item);
+            nextItem();
+          });
       }
 
       nextItem();
@@ -1710,41 +1718,41 @@
       btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึก...';
 
       callBackend('registerPatient', payload, function(res) {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fa-solid fa-house-medical-circle-check"></i> <span>บันทึกข้อมูลผู้ป่วยเยี่ยมบ้าน</span>';
-        if (res && res.success) {
-          Swal.fire({
-            icon: 'success',
-            title: 'บันทึกข้อมูลผู้ป่วยสำเร็จ!',
-            html: '<div class="text-sm">รหัสผู้ป่วย: <b class="text-[#007a3d]">' + escapeHtml(res.patientId) + '</b><br>' + escapeHtml(res.roundLabel) + '</div>',
-            confirmButtonColor: '#007a3d'
-          });
-          document.getElementById('form-patient').reset();
-          clearPatPhotos();
-          clearPatientDraft();
-          loadData();
-        } else {
-          notify('warning', 'เกิดข้อผิดพลาด', (res && res.message) || 'เกิดข้อผิดพลาด');
-        }
-      }, function(err) {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fa-solid fa-house-medical-circle-check"></i> <span>บันทึกข้อมูลผู้ป่วยเยี่ยมบ้าน</span>';
-        if (typeof Swal !== 'undefined') {
-          Swal.fire({
-            icon: 'warning',
-            title: 'ส่งข้อมูลไม่สำเร็จ (สัญญาณอาจขัดข้อง)',
-            text: 'ต้องการบันทึกข้อมูลนี้เก็บไว้ในเครื่องแบบออฟไลน์เพื่อรอซิงค์ภายหลังหรือไม่?',
-            showCancelButton: true,
-            confirmButtonText: '💾 บันทึกลงเครื่องไว้ก่อน',
-            cancelButtonText: 'ยกเลิก',
-            confirmButtonColor: '#007a3d'
-          }).then(function(r) {
-            if (r.isConfirmed) pushToOfflineQueue(payload);
-          });
-        } else {
-          notify('error', 'เกิดข้อผิดพลาด', formatGasError(err));
-        }
-      });
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fa-solid fa-house-medical-circle-check"></i> <span>บันทึกข้อมูลผู้ป่วยเยี่ยมบ้าน</span>';
+          if (res.success) {
+            Swal.fire({
+              icon: 'success',
+              title: 'บันทึกข้อมูลผู้ป่วยสำเร็จ!',
+              html: '<div class="text-sm">รหัสผู้ป่วย: <b class="text-[#007a3d]">' + escapeHtml(res.patientId) + '</b><br>' + escapeHtml(res.roundLabel) + '</div>',
+              confirmButtonColor: '#007a3d'
+            });
+            document.getElementById('form-patient').reset();
+            clearPatPhotos();
+            clearPatientDraft();
+            loadData();
+          } else {
+            notify('warning', 'เกิดข้อผิดพลาด', res.message);
+          }
+        }, function(err) {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fa-solid fa-house-medical-circle-check"></i> <span>บันทึกข้อมูลผู้ป่วยเยี่ยมบ้าน</span>';
+          if (typeof Swal !== 'undefined') {
+            Swal.fire({
+              icon: 'warning',
+              title: 'ส่งข้อมูลไม่สำเร็จ (สัญญาณอาจขัดข้อง)',
+              text: 'ต้องการบันทึกข้อมูลนี้เก็บไว้ในเครื่องแบบออฟไลน์เพื่อรอซิงค์ภายหลังหรือไม่?',
+              showCancelButton: true,
+              confirmButtonText: '💾 บันทึกลงเครื่องไว้ก่อน',
+              cancelButtonText: 'ยกเลิก',
+              confirmButtonColor: '#007a3d'
+            }).then(function(r) {
+              if (r.isConfirmed) pushToOfflineQueue(payload);
+            });
+          } else {
+            notify('error', 'เกิดข้อผิดพลาด', formatGasError(err));
+          }
+        });
     }
 
     function renderDirectory() {
@@ -1815,7 +1823,7 @@
       }
       var pass = document.getElementById('admin-passcode-input').value;
       Swal.fire({ title: 'กำลังตรวจสอบ...', allowOutsideClick: false, didOpen: function() { Swal.showLoading(); } });
-      callBackend('searchMemberRegistry', { query: q }, function(res) {
+      callBackend('verifyAdmin', { passcode: pass }, function(res) {
           Swal.close();
           if (res.success) {
             ADMIN_PASSCODE = pass;
@@ -1827,23 +1835,21 @@
           } else {
             notify('error', 'รหัสผ่านไม่ถูกต้อง', res.message);
           }
-        })
-        .withFailureHandler(function(err) {
+        }, function(err) {
           Swal.close();
           notify('error', 'เกิดข้อผิดพลาด', formatGasError(err));
-        })
-        .verifyAdmin(pass);
+        });
     }
 
     function refreshAdminData() {
-      callBackend('saveRound', { passcode: ADMIN_PASSCODE, roundObj: result.value }, function(res) {
+      callBackend('verifyAdmin', { passcode: ADMIN_PASSCODE }, function(res) {
         if (res.success) {
           ADMIN_DATA = res;
           populateAdminRoundFilter();
           renderAdminTables();
           loadData();
         }
-      }).verifyAdmin(ADMIN_PASSCODE);
+      });
     }
 
     function populateAdminRoundFilter() {
@@ -2007,14 +2013,11 @@
     function sendSummaryLineNow() {
       var roundId = document.getElementById('admin-round-filter').value;
       Swal.fire({ title: 'กำลังส่งสรุปยอดเข้า LINE...', allowOutsideClick: false, didOpen: function() { Swal.showLoading(); } });
-      google.script.run
-        .withSuccessHandler(function(res) {
+      callBackend('sendRoundSummaryToLine', { passcode: ADMIN_PASSCODE, roundId: roundId }, function(res) {
           Swal.fire(res.success ? 'ส่งสำเร็จ' : 'แจ้งเตือน', res.message, res.success ? 'success' : 'warning');
-        })
-        .withFailureHandler(function(err) {
+        }, function(err) {
           Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
-        })
-        .sendRoundSummaryToLine(ADMIN_PASSCODE, roundId);
+        });
     }
 
     function openRoundModalById(roundId) {
@@ -2085,7 +2088,7 @@
         }
       }).then(function(result) {
         if (result.isConfirmed && result.value) {
-          callBackend('saveVolunteerAdmin', { passcode: ADMIN_PASSCODE, obj: result.value }, function(res) {
+          callBackend('saveRound', { passcode: ADMIN_PASSCODE, roundObj: result.value }, function(res) {
             Swal.fire(res.success ? 'สำเร็จ' : 'ผิดพลาด', res.message, res.success ? 'success' : 'error');
             if (res.success) refreshAdminData();
           });
@@ -2147,7 +2150,7 @@
         }
       }).then(function(result) {
         if (result.isConfirmed && result.value) {
-          callBackend('deleteVolunteerAdmin', { passcode: ADMIN_PASSCODE, regId: regId }, function(res) {
+          callBackend('saveVolunteerAdmin', { passcode: ADMIN_PASSCODE, obj: result.value }, function(res) {
             Swal.fire(res.success ? 'สำเร็จ' : 'ผิดพลาด', res.message, res.success ? 'success' : 'error');
             if (res.success) refreshAdminData();
           });
@@ -2166,7 +2169,7 @@
         cancelButtonText: 'ยกเลิก'
       }).then(function(r) {
         if (r.isConfirmed) {
-          callBackend('savePatientAdmin', { passcode: ADMIN_PASSCODE, obj: result.value }, function(res) {
+          callBackend('deleteVolunteerAdmin', { passcode: ADMIN_PASSCODE, regId: regId }, function(res) {
             Swal.fire(res.success ? 'ลบแล้ว' : 'ผิดพลาด', res.message, res.success ? 'success' : 'error');
             if (res.success) refreshAdminData();
           });
@@ -2253,7 +2256,7 @@
         }
       }).then(function(result) {
         if (result.isConfirmed && result.value) {
-          callBackend('deletePatientAdmin', { passcode: ADMIN_PASSCODE, patientId: patientId }, function(res) {
+          callBackend('savePatientAdmin', { passcode: ADMIN_PASSCODE, obj: result.value }, function(res) {
             Swal.fire(res.success ? 'สำเร็จ' : 'ผิดพลาด', res.message, res.success ? 'success' : 'error');
             if (res.success) refreshAdminData();
           });
@@ -2272,7 +2275,7 @@
         cancelButtonText: 'ยกเลิก'
       }).then(function(r) {
         if (r.isConfirmed) {
-          callBackend('updatePatientVisit', { passcode: ADMIN_PASSCODE, patientId: p.Patient_ID, visitStatus: result.value.status, visitNote: result.value.note, images: result.value.images }, function(res) {
+          callBackend('deletePatientAdmin', { passcode: ADMIN_PASSCODE, patientId: patientId }, function(res) {
             Swal.fire(res.success ? 'ลบแล้ว' : 'ผิดพลาด', res.message, res.success ? 'success' : 'error');
             if (res.success) refreshAdminData();
           });
@@ -2342,7 +2345,7 @@
       }).then(function(result) {
         if (result.isConfirmed && result.value) {
           Swal.fire({ title: 'กำลังบันทึกและอัปโหลดรูป...', allowOutsideClick: false, didOpen: function() { Swal.showLoading(); } });
-          callBackend('saveSettings', { passcode: ADMIN_PASSCODE, newSettings: result.value }, function(res) {
+          callBackend('updatePatientVisit', { passcode: ADMIN_PASSCODE, patientId: p.Patient_ID, visitStatus: result.value.status, visitNote: result.value.note, images: result.value.images }, function(res) {
             Swal.fire(res.success ? 'สำเร็จ' : 'ผิดพลาด', res.message, res.success ? 'success' : 'error');
             if (res.success) refreshAdminData();
           });
@@ -2397,7 +2400,7 @@
         }
       }).then(function(result) {
         if (result.isConfirmed && result.value) {
-          callBackend('saveSupplyAdmin', { passcode: ADMIN_PASSCODE, obj: result.value }, function(res) {
+          callBackend('saveSettings', { passcode: ADMIN_PASSCODE, newSettings: result.value }, function(res) {
             Swal.fire(res.success ? 'สำเร็จ' : 'ผิดพลาด', res.message, res.success ? 'success' : 'error');
             if (res.success) {
               if (result.value.newPasscode) ADMIN_PASSCODE = result.value.newPasscode;
@@ -2487,7 +2490,7 @@
         }
       }).then(function(result) {
         if (result.isConfirmed && result.value) {
-          callBackend('deleteSupplyAdmin', { passcode: ADMIN_PASSCODE, supplyId: supplyId }, function(res) {
+          callBackend('saveSupplyAdmin', { passcode: ADMIN_PASSCODE, obj: result.value }, function(res) {
             Swal.fire(res.success ? 'สำเร็จ' : 'ผิดพลาด', res.message, res.success ? 'success' : 'error');
             if (res.success) refreshAdminData();
           });
@@ -2505,7 +2508,7 @@
         cancelButtonText: 'ยกเลิก'
       }).then(function(r) {
         if (r.isConfirmed) {
-          google.script.run.withSuccessHandler(function(res) {
+          callBackend('deleteSupplyAdmin', { passcode: ADMIN_PASSCODE, supplyId: supplyId }, function(res) {
             Swal.fire(res.success ? 'ลบแล้ว' : 'ผิดพลาด', res.message, res.success ? 'success' : 'error');
             if (res.success) refreshAdminData();
           });
@@ -2756,8 +2759,7 @@
       btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> <span>กำลังค้นหา...</span>';
       wrap.innerHTML = '<div class="p-8 text-center text-sm text-slate-500"><i class="fa-solid fa-spinner fa-spin text-2xl text-[#007a3d] mb-2"></i><div>กำลังค้นหาข้อมูลในทะเบียนสมาชิก พอ.สว. จังหวัดตาก... 🔎</div></div>';
 
-      google.script.run
-        .withSuccessHandler(function(res) {
+      callBackend('searchMemberRegistry', { query: q }, function(res) {
           btn.disabled = false;
           btn.innerHTML = '<span>🔍</span> <span>ค้นหาข้อมูล</span>';
           if (!res || !res.success) {
@@ -2796,11 +2798,11 @@
           }
 
           renderMemberResults(res);
-      }, function(err) {
-        btn.disabled = false;
-        btn.innerHTML = '<span>🔍</span> <span>ค้นหาข้อมูล</span>';
-        notify('error', 'เกิดข้อผิดพลาด 😢', formatGasError(err));
-      });
+        }, function(err) {
+          btn.disabled = false;
+          btn.innerHTML = '<span>🔍</span> <span>ค้นหาข้อมูล</span>';
+          notify('error', 'เกิดข้อผิดพลาด 😢', formatGasError(err));
+        });
     }
 
     function renderAwardBadge(emoji, label, dateVal) {

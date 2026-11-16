@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pmmv-tsy-pwa-v1';
+const CACHE_NAME = 'pmmv-tsy-pwa-v3';
 const CORE_ASSETS = [
   './',
   './index.html',
@@ -48,32 +48,36 @@ self.addEventListener('fetch', function(event) {
   var req = event.request;
   var url = req.url || '';
 
-  // Never intercept Google Apps Script API calls or non-GET requests
   if (req.method !== 'GET' || url.indexOf('script.google.com') !== -1 || url.indexOf('script.googleusercontent.com') !== -1) {
     return;
   }
 
+  // Network-First for HTML pages so updates appear immediately when online
+  if (req.mode === 'navigate' || url.endsWith('/index.html') || url.endsWith('/posawo-tsy/')) {
+    event.respondWith(
+      fetch(req).then(function(netRes) {
+        if (netRes && netRes.status === 200) {
+          var copy = netRes.clone();
+          caches.open(CACHE_NAME).then(function(c) { c.put(req, copy); });
+        }
+        return netRes;
+      }).catch(function() {
+        return caches.match(req).then(function(c) { return c || caches.match('./index.html'); });
+      })
+    );
+    return;
+  }
+
+  // Cache-First for static assets & CDNs
   event.respondWith(
     caches.match(req).then(function(cached) {
-      if (cached) {
-        // Refresh cache in background when online
-        fetch(req).then(function(netRes) {
-          if (netRes && (netRes.status === 200 || netRes.type === 'opaque')) {
-            caches.open(CACHE_NAME).then(function(c) { c.put(req, netRes); });
-          }
-        }).catch(function() {});
-        return cached;
-      }
+      if (cached) return cached;
       return fetch(req).then(function(netRes) {
         if (netRes && (netRes.status === 200 || netRes.type === 'opaque')) {
           var copy = netRes.clone();
           caches.open(CACHE_NAME).then(function(c) { c.put(req, copy); });
         }
         return netRes;
-      }).catch(function() {
-        if (req.mode === 'navigate') {
-          return caches.match('./index.html');
-        }
       });
     })
   );

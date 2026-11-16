@@ -1035,7 +1035,7 @@
             lvBadgeHtml +
             '<div class="flex items-start justify-between gap-2">' +
               '<div class="min-w-0">' +
-                '<div class="font-semibold text-base text-slate-800 leading-snug">' + escapeHtml(p.Patient_Name) + ' <span class="text-xs font-normal text-slate-500">(' + escapeHtml(p.Age) + ' ปี)</span></div>' +
+                '<button type="button" onclick="openPatientPreviewById(\'' + escapeHtml(p.Patient_ID) + '\')" class="text-left font-semibold text-base text-[#006837] hover:underline leading-snug cursor-pointer">' + escapeHtml(p.Patient_Name) + ' <span class="text-xs font-normal text-slate-500">(' + escapeHtml(p.Age) + ' ปี)</span> <span class="text-[11px] font-normal text-sky-700">👁️ ดูประวัติ</span></button>' +
                 '<div class="text-xs text-slate-500 mt-0.5">🏠 ' + escapeHtml(p.Address_Village) + ' ต.' + escapeHtml(p.Subdistrict) + '</div>' +
               '</div>' +
               '<span class="text-[11px] font-medium px-2.5 py-0.5 rounded-full border shrink-0 ' + badge + '">' + escapeHtml(p.Visit_Status || 'รอเยี่ยมบ้าน') + '</span>' +
@@ -1046,9 +1046,9 @@
           '<div class="mt-3 pt-2.5 border-t border-slate-100 flex flex-wrap gap-1.5">' +
             navBtn +
             callBtn +
-            '<button type="button" onclick="openTeamNoteById(\'' + escapeHtml(p.Patient_ID) + '\')" class="bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 font-medium py-2 px-3 rounded-xl text-xs transition cursor-pointer">💬 โน้ตสหวิชาชีพ</button>' +
-            '<button type="button" onclick="openEditPatientById(\'' + escapeHtml(p.Patient_ID) + '\')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 px-3 rounded-xl text-xs transition cursor-pointer">✏️ แก้ไข</button>' +
-            '<button type="button" onclick="openVisitById(\'' + escapeHtml(p.Patient_ID) + '\')" class="flex-1 moph-btn font-medium py-2 px-3 rounded-xl text-xs transition cursor-pointer">📝 บันทึกผลเยี่ยม</button>' +
+            '<button type="button" onclick="openTeamNoteById(\'' + escapeHtml(p.Patient_ID) + '\')" class="bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 font-medium py-2 px-2.5 rounded-xl text-xs whitespace-nowrap transition cursor-pointer">💬 โน้ตสหวิชาชีพ</button>' +
+            '<button type="button" onclick="openEditPatientById(\'' + escapeHtml(p.Patient_ID) + '\')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 px-2.5 rounded-xl text-xs whitespace-nowrap transition cursor-pointer">✏️ แก้ไข</button>' +
+            '<button type="button" onclick="openVisitById(\'' + escapeHtml(p.Patient_ID) + '\')" class="flex-1 min-w-[120px] moph-btn font-medium py-2 px-3 rounded-xl text-xs whitespace-nowrap transition cursor-pointer">📝 บันทึกผลเยี่ยม</button>' +
           '</div>' +
         '</div>';
       }).join('');
@@ -1607,6 +1607,76 @@
             queuePatientFormOffline(p, result.value);
           });
         }
+      });
+    }
+
+    function openPatientPreviewById(patientId) {
+      var p = (ADMIN_DATA && ADMIN_DATA.patients || []).find(function(x) { return x.Patient_ID === patientId; });
+      if (!p) return;
+
+      var lvMeta = getVulnLevelMeta(p.Vulnerability_Level);
+      var lvHtml = lvMeta
+        ? '<div class="rounded-xl border p-2 text-xs font-semibold ' + lvMeta.cardCls + '">' + lvMeta.icon + ' ' + escapeHtml(lvMeta.title) + '</div>'
+        : '';
+
+      var clin = evalClinicalAlert(p.BP, p.Weight_kg, p.Height_cm);
+      var clinRow = '<div class="rounded-xl border border-slate-200 bg-slate-50 p-2.5 space-y-1">' +
+        '<div class="font-semibold text-slate-700">🩺 สัญญาณชีพและ Barthel ADL</div>' +
+        '<div><b>ความดัน:</b> ' + escapeHtml(p.BP || '-') + ' mmHg | <b>น้ำหนัก:</b> ' + escapeHtml(p.Weight_kg || '-') + ' กก. | <b>ส่วนสูง:</b> ' + escapeHtml(p.Height_cm || '-') + ' ซม.</div>' +
+        (clin.bmiText ? ('<div class="font-medium text-[#006837]">' + escapeHtml(clin.bmiText) + '</div>') : '') +
+        '<div><b>Barthel ADL:</b> ' + (p.ADL_Score !== undefined && String(p.ADL_Score).trim() !== '' ? (escapeHtml(p.ADL_Score) + '/20 (' + escapeHtml(p.ADL_Group || '') + ')') : '-') + '</div>' +
+      '</div>';
+
+      var driveUrls = p.Photo_URLs ? String(p.Photo_URLs).split(',').map(function(u) { return u.trim(); }).filter(Boolean) : [];
+      var localImgs = (p._localImages && p._localImages.length) ? p._localImages : [];
+      var allPics = driveUrls.map(function(u) { return { thumb: toDriveThumb(u), orig: u }; })
+        .concat(localImgs.map(function(u) { return { thumb: u, orig: u }; }));
+      var picsHtml = allPics.length
+        ? ('<div class="space-y-1"><div class="font-semibold text-slate-700">📷 ภาพถ่ายประกอบ (' + allPics.length + ' ภาพ)</div>' +
+           '<div class="grid grid-cols-3 gap-1.5">' +
+           allPics.map(function(it) {
+             return '<a href="' + escapeHtml(it.orig) + '" target="_blank"><img src="' + escapeHtml(it.thumb) + '" class="w-full h-24 object-cover rounded-lg border border-green-200"></a>';
+           }).join('') + '</div></div>')
+        : '<div class="text-slate-400">📷 ยังไม่มีภาพถ่ายประกอบ</div>';
+
+      var sigHtml = p.Signature_URL
+        ? ('<div class="space-y-1"><div class="font-semibold text-slate-700">✍️ ลายเซ็น / ลายนิ้วมือรับมอบ</div>' +
+           '<a href="' + escapeHtml(p.Signature_URL) + '" target="_blank"><img src="' + escapeHtml(toDriveThumb(p.Signature_URL)) + '" class="max-h-28 rounded-lg border border-emerald-200 bg-white p-1"></a></div>')
+        : '';
+
+      Swal.fire({
+        title: escapeHtml(p.Patient_Name) + ' (' + escapeHtml(p.Age) + ' ปี)',
+        width: '96%',
+        html:
+          '<div class="space-y-2.5 text-left text-xs">' +
+            lvHtml +
+            '<div class="rounded-xl border border-green-200 bg-green-50/50 p-2.5 space-y-1">' +
+              '<div><b>รหัส:</b> ' + escapeHtml(p.Patient_ID) + ' | <b>สถานะ:</b> ' + escapeHtml(p.Visit_Status || 'รอเยี่ยมบ้าน') + '</div>' +
+              '<div><b>วัน/เดือน/ปีเกิด:</b> ' + escapeHtml(p.Birth_Date || '-') + ' | <b>เลขบัตรฯ:</b> ' + escapeHtml(p.CID || '-') + '</div>' +
+              '<div><b>เบอร์โทร:</b> ' + (p.Phone ? ('<a href="tel:' + escapeHtml(String(p.Phone).replace(/[^0-9+]/g, '')) + '" class="text-[#007a3d] underline font-medium">' + escapeHtml(p.Phone) + '</a>') : '-') + '</div>' +
+              '<div><b>ที่อยู่:</b> ' + escapeHtml(p.Address_Village) + ' ต.' + escapeHtml(p.Subdistrict) + ' อ.ท่าสองยาง จ.ตาก</div>' +
+              (p.Map_Link ? ('<div><a href="' + escapeHtml(p.Map_Link) + '" target="_blank" class="text-[#007a3d] underline font-medium">📍 เปิดตำแหน่งบน Google Maps</a></div>') : '') +
+            '</div>' +
+            '<div class="rounded-xl border border-slate-200 bg-white p-2.5 space-y-1">' +
+              '<div><b>ประเภทความเปราะบาง:</b> ' + escapeHtml(p.Patient_Group || '-') + '</div>' +
+              '<div><b>โรค/การวินิจฉัย:</b> ' + escapeHtml(p.Underlying_Disease || '-') + '</div>' +
+              '<div><b>ประวัติ รพ.ท่าสองยาง:</b> ' + escapeHtml(p.Hospital_History || '-') + '</div>' +
+              '<div><b>สภาพความเป็นอยู่/ผู้ดูแล:</b> ' + escapeHtml(p.Living_Caregiver || '-') + '</div>' +
+              '<div><b>ความต้องการช่วยเหลือ:</b> ' + escapeHtml(p.Assistance_Needs || '-') + '</div>' +
+              '<div class="text-[11px] text-slate-500 pt-1 border-t border-slate-100"><b>ผู้แจ้ง:</b> ' + escapeHtml(p.Reporter_Name || '-') + ' (' + escapeHtml(p.Reporter_Agency || '-') + ')</div>' +
+            '</div>' +
+            clinRow +
+            (p.Team_Notes ? ('<div class="rounded-xl border border-sky-200 bg-sky-50 p-2.5 whitespace-pre-line"><div class="font-semibold text-sky-900 mb-1">💬 โน้ตทีมสหวิชาชีพ</div>' + escapeHtml(p.Team_Notes) + '</div>') : '') +
+            (p.Visit_Note ? ('<div class="rounded-xl border border-emerald-200 bg-emerald-50 p-2.5 whitespace-pre-line"><div class="font-semibold text-emerald-900 mb-1">📝 ผลการเยี่ยมบ้าน</div>' + escapeHtml(p.Visit_Note) + '</div>') : '') +
+            picsHtml +
+            sigHtml +
+          '</div>',
+        showCancelButton: true,
+        confirmButtonText: '📝 บันทึกผลเยี่ยม',
+        cancelButtonText: 'ปิด',
+        confirmButtonColor: '#007a3d'
+      }).then(function(r) {
+        if (r.isConfirmed) openVisitById(patientId);
       });
     }
 

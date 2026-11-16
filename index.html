@@ -976,6 +976,16 @@
         var adlHtml = (p.ADL_Score !== undefined && String(p.ADL_Score).trim() !== '')
           ? '<div class="text-[11px] text-indigo-900 bg-indigo-50 border border-indigo-200 rounded-lg px-2.5 py-1.5 mt-1.5 font-medium">📋 Barthel ADL: <b>' + escapeHtml(p.ADL_Score) + '/20</b> (' + escapeHtml(p.ADL_Group || '') + ')</div>'
           : '';
+        var screenBadges = [];
+        if (p.Screen_2Q) {
+          var is2qPos = String(p.Screen_2Q).indexOf('เสี่ยง') !== -1;
+          screenBadges.push('<span class="inline-block text-[10px] px-2 py-0.5 rounded-full border font-medium ' + (is2qPos ? 'bg-rose-100 text-rose-800 border-rose-300' : 'bg-emerald-50 text-emerald-800 border-emerald-200') + '">🧠 2Q: ' + escapeHtml(p.Screen_2Q) + '</span>');
+        }
+        if (p.Fall_Risk) {
+          var isFallPos = String(p.Fall_Risk).indexOf('เสี่ยง') !== -1;
+          screenBadges.push('<span class="inline-block text-[10px] px-2 py-0.5 rounded-full border font-medium ' + (isFallPos ? 'bg-amber-100 text-amber-800 border-amber-300' : 'bg-emerald-50 text-emerald-800 border-emerald-200') + '">🦴 หกล้ม: ' + escapeHtml(p.Fall_Risk) + '</span>');
+        }
+        var screenHtml = screenBadges.length ? ('<div class="flex flex-wrap gap-1 mt-1.5">' + screenBadges.join('') + '</div>') : '';
         var sigHtml = p.Signature_URL
           ? '<div class="mt-1.5"><a href="' + escapeHtml(p.Signature_URL) + '" target="_blank" class="inline-flex items-center gap-1 text-[11px] text-[#006837] bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg font-medium">✍️ ดูลายเซ็น / ลายนิ้วมือรับมอบ</a></div>'
           : '';
@@ -1024,7 +1034,7 @@
               '<div><b>ผู้ดูแล:</b> ' + escapeHtml(p.Living_Caregiver || '-') + '</div>' +
               '<div><b>ความช่วยเหลือ:</b> ' + escapeHtml(p.Assistance_Needs || '-') + '</div>' +
             '</div>' +
-            vitalsHtml + adlHtml + sigHtml + noteHtml + teamNotesHtml + photosHtml)
+            vitalsHtml + adlHtml + screenHtml + sigHtml + noteHtml + teamNotesHtml + photosHtml)
           : '';
         var toggleExpandBtn = COMPACT_MODE
           ? ('<button type="button" onclick="toggleCardExpand(\'' + escapeHtml(p.Patient_ID) + '\')" class="mt-2 w-full text-center text-[11px] font-medium text-[#007a3d] bg-green-50/70 hover:bg-green-100/70 rounded-lg py-1 cursor-pointer">' + (isExpanded ? '▴ ย่อรายละเอียด' : '▾ ดูรายละเอียด / โน้ต / รูปภาพ (' + totalPics + ')') + '</button>')
@@ -1146,6 +1156,8 @@
           p.Weight_kg = val.visitExtra.weight || p.Weight_kg || '';
           p.Height_cm = val.visitExtra.height || p.Height_cm || '';
           if (val.visitExtra.adlScore !== '') { p.ADL_Score = val.visitExtra.adlScore; p.ADL_Group = val.visitExtra.adlGroup; }
+          if (val.visitExtra.screen2q) p.Screen_2Q = val.visitExtra.screen2q;
+          if (val.visitExtra.fallRisk) p.Fall_Risk = val.visitExtra.fallRisk;
         }
         try { localStorage.setItem(CACHE_DATA_KEY, JSON.stringify(ADMIN_DATA)); } catch (e) {}
         renderPatients();
@@ -1625,6 +1637,7 @@
         '<div><b>ความดัน:</b> ' + escapeHtml(p.BP || '-') + ' mmHg | <b>น้ำหนัก:</b> ' + escapeHtml(p.Weight_kg || '-') + ' กก. | <b>ส่วนสูง:</b> ' + escapeHtml(p.Height_cm || '-') + ' ซม.</div>' +
         (clin.bmiText ? ('<div class="font-medium text-[#006837]">' + escapeHtml(clin.bmiText) + '</div>') : '') +
         '<div><b>Barthel ADL:</b> ' + (p.ADL_Score !== undefined && String(p.ADL_Score).trim() !== '' ? (escapeHtml(p.ADL_Score) + '/20 (' + escapeHtml(p.ADL_Group || '') + ')') : '-') + '</div>' +
+        '<div><b>คัดกรองซึมเศร้า (2Q):</b> ' + escapeHtml(p.Screen_2Q || '-') + ' | <b>เสี่ยงหกล้ม:</b> ' + escapeHtml(p.Fall_Risk || '-') + '</div>' +
       '</div>';
 
       var driveUrls = p.Photo_URLs ? String(p.Photo_URLs).split(',').map(function(u) { return u.trim(); }).filter(Boolean) : [];
@@ -1718,6 +1731,17 @@
             '<summary class="font-semibold text-indigo-900 cursor-pointer flex items-center justify-between"><span>📋 แบบประเมิน Barthel ADL (10 ข้อ)' + (p.ADL_Score ? (' — เดิม ' + escapeHtml(p.ADL_Score) + '/20') : '') + '</span><span id="sw-adl-badge" class="text-[11px] px-2 py-0.5 rounded-full bg-white border border-indigo-200">ยังไม่ได้ประเมิน</span></summary>' +
             '<div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">' + adlHtml + '</div>' +
           '</details>' +
+          '<details class="rounded-xl border border-amber-200 bg-amber-50/40 p-2.5">' +
+            '<summary class="font-semibold text-amber-900 cursor-pointer flex items-center justify-between"><span>🧠 คัดกรองซึมเศร้า (2Q) และความเสี่ยงหกล้ม</span><span id="sw-scr-badge" class="text-[11px] px-2 py-0.5 rounded-full bg-white border border-amber-200">ยังไม่ได้คัดกรอง</span></summary>' +
+            '<div class="space-y-2 mt-2 text-xs">' +
+              '<div><label class="block text-slate-600 mb-0.5">2Q ข้อ 1: ใน 2 สัปดาห์ที่ผ่านมา รู้สึกหดหู่ เศร้า หรือท้อแท้สิ้นหวังหรือไม่?</label>' +
+              '<select id="sw-2q-1" class="w-full rounded-lg border border-slate-300 px-2 py-1.5 bg-white"><option value="">-- ไม่ระบุ --</option><option value="0">ไม่เป็น</option><option value="1">เป็น (มีอาการ)</option></select></div>' +
+              '<div><label class="block text-slate-600 mb-0.5">2Q ข้อ 2: ใน 2 สัปดาห์ที่ผ่านมา รู้สึกเบื่อ ทำอะไรก็ไม่เพลิดเพลินหรือไม่?</label>' +
+              '<select id="sw-2q-2" class="w-full rounded-lg border border-slate-300 px-2 py-1.5 bg-white"><option value="">-- ไม่ระบุ --</option><option value="0">ไม่เป็น</option><option value="1">เป็น (มีอาการ)</option></select></div>' +
+              '<div><label class="block text-slate-600 mb-0.5">ความเสี่ยงหกล้ม (ผู้สูงอายุ): เคยหกล้มใน 6 เดือน / เดินเซ / กลัวหกล้ม?</label>' +
+              '<select id="sw-fall-1" class="w-full rounded-lg border border-slate-300 px-2 py-1.5 bg-white"><option value="">-- ไม่ระบุ --</option><option value="ปกติ">ไม่เสี่ยง (ทรงตัวปกติ)</option><option value="⚠️ เสี่ยงพลัดตกหกล้ม">เสี่ยงพลัดตกหกล้ม</option></select></div>' +
+            '</div>' +
+          '</details>' +
           '<div><label class="block text-slate-500 mb-0.5">สถานะ</label><select id="sw-v-status" class="swal2-select !m-0 !w-full !text-xs">' + stOptions + '</select></div>' +
           '<div><label class="block text-slate-500 mb-0.5">ข้อมูลเยี่ยม / อาการ / การช่วยเหลือ</label><textarea id="sw-v-note" rows="3" class="swal2-textarea !m-0 !w-full !text-xs !h-auto" placeholder="พิมพ์ผลการเยี่ยม...">' + escapeHtml(p.Visit_Note || '') + '</textarea></div>' +
           '<div><label class="block text-slate-500 mb-0.5">แนบภาพประกอบ (สูงสุด 10 ภาพ)</label>' +
@@ -1795,6 +1819,31 @@
           for (var j = 0; j < adlSels.length; j++) {
             adlSels[j].addEventListener('change', recalcAdl);
           }
+
+          // Live 2Q & Fall Risk Badge
+          var q1El = document.getElementById('sw-2q-1');
+          var q2El = document.getElementById('sw-2q-2');
+          var flEl = document.getElementById('sw-fall-1');
+          var scrBadge = document.getElementById('sw-scr-badge');
+          function recalcScreens() {
+            var q1 = q1El ? q1El.value : '';
+            var q2 = q2El ? q2El.value : '';
+            var fl = flEl ? flEl.value : '';
+            if (!q1 && !q2 && !fl) {
+              scrBadge.textContent = 'ยังไม่ได้คัดกรอง';
+              scrBadge.className = 'text-[11px] px-2 py-0.5 rounded-full bg-white border border-amber-200';
+              return;
+            }
+            var parts = [];
+            var high = false;
+            if (q1 === '1' || q2 === '1') { parts.push('⚠️ เสี่ยงซึมเศร้า (ประเมิน 9Q ต่อ)'); high = true; }
+            else if (q1 === '0' || q2 === '0') { parts.push('✅ 2Q ปกติ'); }
+            if (fl && fl.indexOf('เสี่ยง') !== -1) { parts.push('⚠️ เสี่ยงหกล้ม'); high = true; }
+            else if (fl) { parts.push('✅ ไม่เสี่ยงหกล้ม'); }
+            scrBadge.textContent = parts.join(' | ');
+            scrBadge.className = 'text-[11px] px-2 py-0.5 rounded-full border font-semibold ' + (high ? 'bg-rose-100 text-rose-800 border-rose-300' : 'bg-emerald-100 text-emerald-800 border-emerald-300');
+          }
+          [q1El, q2El, flEl].forEach(function(el) { if (el) el.addEventListener('change', recalcScreens); });
 
           // Signature Pad (touch + mouse)
           var canvas = document.getElementById('sw-v-sig-canvas');
@@ -1874,6 +1923,10 @@
           }
           var adlScore = anyAdl ? String(adlTotal) : '';
           var adlGroup = anyAdl ? calcAdlSummary(adlTotal).group : '';
+          var vq1 = document.getElementById('sw-2q-1').value;
+          var vq2 = document.getElementById('sw-2q-2').value;
+          var screen2q = (!vq1 && !vq2) ? '' : ((vq1 === '1' || vq2 === '1') ? '⚠️ เสี่ยงซึมเศร้า (ควรประเมิน 9Q ต่อ)' : 'ปกติ (2Q-)');
+          var fallRisk = document.getElementById('sw-fall-1').value;
 
           var sigCanvas = document.getElementById('sw-v-sig-canvas');
           var sigDataUrl = sigPhotoDataUrl ? sigPhotoDataUrl : ((hasSigned && sigCanvas) ? sigCanvas.toDataURL('image/png') : '');
@@ -1896,6 +1949,8 @@
                 height: document.getElementById('sw-v-height').value.trim(),
                 adlScore: adlScore,
                 adlGroup: adlGroup,
+                screen2q: screen2q,
+                fallRisk: fallRisk,
                 signatureDataUrl: sigDataUrl
               }
             };

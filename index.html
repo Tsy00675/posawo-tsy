@@ -35,11 +35,11 @@
   <header class="moph-header text-white shadow-md sticky top-0 z-30">
     <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-2">
       <div class="flex items-center gap-2.5 min-w-0">
-        <div class="w-10 h-10 rounded-xl bg-white/15 border border-white/25 flex items-center justify-center shrink-0">
+        <div id="hdr-logo-wrap" class="w-10 h-10 rounded-xl bg-white/15 border border-white/25 flex items-center justify-center shrink-0 overflow-hidden">
           <i class="fa-solid fa-house-medical text-lg text-white"></i>
         </div>
         <div class="min-w-0">
-          <h1 class="text-sm sm:text-base font-semibold truncate">เยี่ยมบ้านผู้ป่วย พอ.สว.</h1>
+          <h1 id="hdr-title" class="text-sm sm:text-base font-semibold truncate">เยี่ยมบ้านผู้ป่วย พอ.สว.</h1>
           <p id="hdr-org" class="text-[11px] text-green-100 truncate">สสอ.ท่าสองยาง จ.ตาก</p>
         </div>
       </div>
@@ -405,6 +405,7 @@
       var cur = localStorage.getItem(LARGE_FONT_KEY) === '1';
       localStorage.setItem(LARGE_FONT_KEY, cur ? '0' : '1');
       applySavedFont();
+      loadSavedBranding();
     }
 
     var BAG_CHECK_KEY = 'pmmv_bag_checklist_v1';
@@ -888,12 +889,37 @@
       }
     }
 
+    var BRAND_CACHE_KEY = 'pmmv_pwa_brand_v1';
+
+    function applyBranding(brand) {
+      if (!brand) return;
+      try { localStorage.setItem(BRAND_CACHE_KEY, JSON.stringify(brand)); } catch (e) {}
+      var logoWrap = document.getElementById('hdr-logo-wrap');
+      if (logoWrap && brand.logoUrl) {
+        logoWrap.innerHTML = '<img src="' + escapeHtml(brand.logoUrl) + '" alt="Logo" class="w-full h-full object-contain bg-white p-0.5">';
+      }
+      var orgEl = document.getElementById('hdr-org');
+      if (orgEl && brand.orgName) orgEl.textContent = brand.orgName;
+    }
+
+    function loadSavedBranding() {
+      try {
+        var raw = localStorage.getItem(BRAND_CACHE_KEY);
+        if (raw) applyBranding(JSON.parse(raw));
+      } catch (e) {}
+      if (navigator.onLine) {
+        callApi('getInitialData', {}, function(data) {
+          if (data) applyBranding({ logoUrl: data.logoUrl || '', orgName: data.orgName || '' });
+        });
+      }
+    }
+
     function showApp() {
       document.getElementById('sec-login').classList.add('hidden');
       document.getElementById('sec-app').classList.remove('hidden');
       var bnav = document.getElementById('mobile-bottom-bar'); if (bnav) bnav.classList.remove('hidden');
-      if (ADMIN_DATA && ADMIN_DATA.settings && ADMIN_DATA.settings.orgName) {
-        document.getElementById('hdr-org').textContent = ADMIN_DATA.settings.orgName;
+      if (ADMIN_DATA && ADMIN_DATA.settings) {
+        applyBranding({ logoUrl: ADMIN_DATA.settings.logoUrl || '', orgName: ADMIN_DATA.settings.orgName || '' });
       }
       populateRounds();
       renderOfflineQueue();

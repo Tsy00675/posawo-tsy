@@ -109,6 +109,17 @@
             <option value="ระดับ 3">🟡 ระดับ 3 (เฝ้าระวัง)</option>
           </select>
         </div>
+        <div class="flex flex-wrap items-center gap-2 pt-0.5">
+          <button type="button" id="btn-sort-nearest" class="flex-1 bg-sky-50 hover:bg-sky-100 text-sky-900 border border-sky-200 font-medium py-2 px-2.5 rounded-xl text-xs transition cursor-pointer">
+            🧭 เรียงใกล้-ไกล
+          </button>
+          <button type="button" id="btn-sort-custom" class="flex-1 bg-slate-50 hover:bg-slate-100 text-slate-800 border border-slate-300 font-medium py-2 px-2.5 rounded-xl text-xs transition cursor-pointer">
+            ↕️ จัดลำดับเอง
+          </button>
+          <a id="btn-multi-route" href="#" target="_blank" class="hidden w-full sm:w-auto text-center bg-[#007a3d] hover:bg-[#006837] text-white font-medium py-2 px-3 rounded-xl text-xs transition">
+            🗺️ นำทางรวมหลายจุด
+          </a>
+        </div>
       </div>
 
       <!-- Patient Cards List -->
@@ -325,6 +336,152 @@
       };
     }
 
+    var CUSTOM_SORT_MODE = false;
+    var CUSTOM_ORDER_KEY = 'pmmv_custom_order_v1';
+
+    function getCustomOrder() {
+      try { return JSON.parse(localStorage.getItem(CUSTOM_ORDER_KEY) || '[]'); } catch (e) { return []; }
+    }
+
+    function setCustomOrder(arr) {
+      localStorage.setItem(CUSTOM_ORDER_KEY, JSON.stringify(arr || []));
+    }
+
+    function toggleCustomSort() {
+      var btn = document.getElementById('btn-sort-custom');
+      CUSTOM_SORT_MODE = !CUSTOM_SORT_MODE;
+      if (CUSTOM_SORT_MODE) {
+        if (SORT_NEAREST && TEAM_COORDS) {
+          // Seed custom order from current GPS-sorted list so user can tweak it!
+          var curIds = getCurrentRenderedListIds();
+          if (curIds.length) setCustomOrder(curIds);
+          SORT_NEAREST = false;
+          var nBtn = document.getElementById('btn-sort-nearest');
+          if (nBtn) {
+            nBtn.className = 'flex-1 bg-sky-50 hover:bg-sky-100 text-sky-900 border border-sky-200 font-medium py-2 px-2.5 rounded-xl text-xs transition cursor-pointer';
+            nBtn.textContent = '🧭 เรียงใกล้-ไกล';
+          }
+        } else {
+          var ord = getCustomOrder();
+          var allIds = (ADMIN_DATA && ADMIN_DATA.patients || []).map(function(p) { return p.Patient_ID; });
+          if (!ord.length) setCustomOrder(allIds);
+        }
+        if (btn) {
+          btn.className = 'flex-1 bg-slate-800 text-white border border-slate-900 font-medium py-2 px-2.5 rounded-xl text-xs transition cursor-pointer';
+          btn.textContent = '✅ กำลังจัดลำดับ (แตะเพื่อปิด)';
+        }
+      } else {
+        if (btn) {
+          btn.className = 'flex-1 bg-slate-50 hover:bg-slate-100 text-slate-800 border border-slate-300 font-medium py-2 px-2.5 rounded-xl text-xs transition cursor-pointer';
+          btn.textContent = '↕️ จัดลำดับเอง';
+        }
+      }
+      renderPatients();
+    }
+
+    function getCurrentRenderedListIds() {
+      if (!ADMIN_DATA || !ADMIN_DATA.patients) return [];
+      var list = ADMIN_DATA.patients.slice();
+      if (SORT_NEAREST && TEAM_COORDS) {
+        list.sort(function(a, b) {
+          var ca = parseCoords(a.GPS_Coords, a.Map_Link);
+          var cb = parseCoords(b.GPS_Coords, b.Map_Link);
+          var da = ca ? calcDistanceKm(TEAM_COORDS.lat, TEAM_COORDS.lng, ca[0], ca[1]) : 999999;
+          var db = cb ? calcDistanceKm(TEAM_COORDS.lat, TEAM_COORDS.lng, cb[0], cb[1]) : 999999;
+          return da - db;
+        });
+      }
+      return list.map(function(p) { return p.Patient_ID; });
+    }
+
+    function movePatientOrder(patientId, dir) {
+      var ord = getCustomOrder();
+      var allIds = (ADMIN_DATA && ADMIN_DATA.patients || []).map(function(p) { return p.Patient_ID; });
+      allIds.forEach(function(id) { if (ord.indexOf(id) === -1) ord.push(id); });
+      var idx = ord.indexOf(patientId);
+      if (idx === -1) return;
+      var newIdx = idx + dir;
+      if (newIdx < 0 || newIdx >= ord.length) return;
+      var tmp = ord[idx];
+      ord[idx] = ord[newIdx];
+      ord[newIdx] = tmp;
+      setCustomOrder(ord);
+      renderPatients();
+    }
+
+    var SORT_NEAREST = false;
+    var TEAM_COORDS = null;
+
+    function parseCoords(gpsStr, mapUrl) {
+      var s = String(gpsStr || '').trim();
+      var m = s.match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/);
+      if (m) return [parseFloat(m[1]), parseFloat(m[2])];
+      var u = String(mapUrl || '').trim();
+      var m2 = u.match(/[?&]q=(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/);
+      if (m2) return [parseFloat(m2[1]), parseFloat(m2[2])];
+      return null;
+    }
+
+    function calcDistanceKm(lat1, lon1, lat2, lon2) {
+      var R = 6371;
+      var dLat = (lat2 - lat1) * Math.PI / 180;
+      var dLon = (lon2 - lon1) * Math.PI / 180;
+      var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    function formatDistText(km) {
+      if (km === null || km === undefined || !isFinite(km)) return '';
+      if (km < 1) return Math.round(km * 1000) + ' ม.';
+      return km.toFixed(1) + ' กม.';
+    }
+
+    function toggleSortNearest() {
+      var btn = document.getElementById('btn-sort-nearest');
+      var routeBtn = document.getElementById('btn-multi-route');
+      if (SORT_NEAREST) {
+        SORT_NEAREST = false;
+        TEAM_COORDS = null;
+        if (btn) {
+          btn.className = 'flex-1 bg-sky-50 hover:bg-sky-100 text-sky-900 border border-sky-200 font-medium py-2 px-3 rounded-xl text-xs transition cursor-pointer';
+          btn.textContent = '🧭 เรียงจากใกล้ไปไกล (GPS ทีม)';
+        }
+        if (routeBtn) routeBtn.classList.add('hidden');
+        renderPatients();
+        return;
+      }
+      if (!navigator.geolocation) {
+        Swal.fire('ไม่รองรับ GPS', 'อุปกรณ์นี้ไม่รองรับการดึงพิกัด GPS', 'warning');
+        return;
+      }
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = '⏳ กำลังจับพิกัด GPS ของทีม...';
+      }
+      navigator.geolocation.getCurrentPosition(
+        function(pos) {
+          TEAM_COORDS = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+          SORT_NEAREST = true;
+          if (btn) {
+            btn.disabled = false;
+            btn.className = 'flex-1 bg-sky-600 text-white border border-sky-700 font-medium py-2 px-3 rounded-xl text-xs transition cursor-pointer';
+            btn.textContent = '🧭 เรียงใกล้-ไกลแล้ว (แตะเพื่อยกเลิก)';
+          }
+          renderPatients();
+        },
+        function() {
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = '🧭 เรียงจากใกล้ไปไกล (GPS ทีม)';
+          }
+          Swal.fire('ดึงพิกัดไม่ได้', 'กรุณาเปิดสิทธิ์ Location / GPS บนโทรศัพท์แล้วลองใหม่อีกครั้ง', 'warning');
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    }
+
     function escapeHtml(str) {
       return String(str || '')
         .replace(/&/g, '&amp;')
@@ -494,12 +651,55 @@
         return matchSt && matchLv && matchQ;
       });
 
+      var routeBtn = document.getElementById('btn-multi-route');
+      var customOrd = getCustomOrder();
+      if (SORT_NEAREST && TEAM_COORDS) {
+        list = list.slice().sort(function(a, b) {
+          var ca = parseCoords(a.GPS_Coords, a.Map_Link);
+          var cb = parseCoords(b.GPS_Coords, b.Map_Link);
+          var da = ca ? calcDistanceKm(TEAM_COORDS.lat, TEAM_COORDS.lng, ca[0], ca[1]) : 999999;
+          var db = cb ? calcDistanceKm(TEAM_COORDS.lat, TEAM_COORDS.lng, cb[0], cb[1]) : 999999;
+          return da - db;
+        });
+      } else if (CUSTOM_SORT_MODE || customOrd.length > 0) {
+        list = list.slice().sort(function(a, b) {
+          var ia = customOrd.indexOf(a.Patient_ID);
+          var ib = customOrd.indexOf(b.Patient_ID);
+          if (ia === -1) ia = 999999;
+          if (ib === -1) ib = 999999;
+          return ia - ib;
+        });
+      }
+
+      if (routeBtn && (SORT_NEAREST || CUSTOM_SORT_MODE || customOrd.length > 0)) {
+        var unvisitedPts = [];
+        list.forEach(function(pt) {
+          if (pt.Visit_Status !== 'เยี่ยมแล้ว') {
+            var c = parseCoords(pt.GPS_Coords, pt.Map_Link);
+            if (c) unvisitedPts.push(c[0] + ',' + c[1]);
+          }
+        });
+        if (unvisitedPts.length > 0) {
+          var stops = unvisitedPts.slice(0, 8);
+          var dest = stops[stops.length - 1];
+          var wps = stops.slice(0, -1);
+          var origParam = (TEAM_COORDS ? ('&origin=' + TEAM_COORDS.lat + ',' + TEAM_COORDS.lng) : '');
+          var gUrl = 'https://www.google.com/maps/dir/?api=1' + origParam + '&destination=' + encodeURIComponent(dest) + (wps.length ? ('&waypoints=' + encodeURIComponent(wps.join('|'))) : '');
+          routeBtn.href = gUrl;
+          routeBtn.classList.remove('hidden');
+        } else {
+          routeBtn.classList.add('hidden');
+        }
+      } else if (routeBtn) {
+        routeBtn.classList.add('hidden');
+      }
+
       if (!list.length) {
         wrap.innerHTML = '<div class="bg-white rounded-2xl border border-slate-200 p-8 text-center text-sm text-slate-400">ไม่พบรายชื่อผู้ป่วยในเงื่อนไขที่เลือก</div>';
         return;
       }
 
-      wrap.innerHTML = list.map(function(p) {
+      wrap.innerHTML = list.map(function(p, cardIdx) {
         var isDone = p.Visit_Status === 'เยี่ยมแล้ว';
         var badge = isDone ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-amber-100 text-amber-800 border-amber-200';
         var navBtn = p.Map_Link
@@ -545,7 +745,25 @@
 
         var lvMeta = getVulnLevelMeta(p.Vulnerability_Level);
         var cardBorder = lvMeta ? ('border-green-100 ' + lvMeta.borderLeft) : 'border-green-100';
-        var lvBadgeHtml = lvMeta ? ('<div class="mb-2"><span class="inline-block text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ' + lvMeta.badgeCls + '">' + lvMeta.icon + ' ' + escapeHtml(lvMeta.title) + '</span></div>') : '';
+        var distHtml = '';
+        if (SORT_NEAREST && TEAM_COORDS) {
+          var cPt = parseCoords(p.GPS_Coords, p.Map_Link);
+          if (cPt) {
+            var km = calcDistanceKm(TEAM_COORDS.lat, TEAM_COORDS.lng, cPt[0], cPt[1]);
+            distHtml = '<span class="inline-block text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-sky-100 text-sky-900 border border-sky-300">📏 ห่าง ~' + formatDistText(km) + '</span>';
+          } else {
+            distHtml = '<span class="inline-block text-[11px] px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500">ไม่มีพิกัด GPS</span>';
+          }
+        }
+        var orderCtrlHtml = CUSTOM_SORT_MODE
+          ? ('<div class="flex items-center justify-between gap-2 mb-2 pb-1.5 border-b border-slate-100">' +
+             '<span class="text-xs font-bold text-[#007a3d]">ลำดับที่ #' + (cardIdx + 1) + '</span>' +
+             '<div class="flex items-center gap-1">' +
+               '<button type="button" onclick="movePatientOrder(\'' + escapeHtml(p.Patient_ID) + '\', -1)" class="bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg text-xs font-medium cursor-pointer">⬆️ ขึ้น</button>' +
+               '<button type="button" onclick="movePatientOrder(\'' + escapeHtml(p.Patient_ID) + '\', 1)" class="bg-slate-100 hover:bg-slate-200 px-2.5 py-1 rounded-lg text-xs font-medium cursor-pointer">⬇️ ลง</button>' +
+             '</div></div>')
+          : '';
+        var lvBadgeHtml = orderCtrlHtml + ((lvMeta || distHtml) ? ('<div class="mb-2 flex flex-wrap items-center gap-1.5">' + (lvMeta ? ('<span class="inline-block text-[11px] font-semibold px-2.5 py-0.5 rounded-full border ' + lvMeta.badgeCls + '">' + lvMeta.icon + ' ' + escapeHtml(lvMeta.title) + '</span>') : '') + distHtml + '</div>') : '');
         return '<div class="bg-white rounded-2xl shadow-sm border ' + cardBorder + ' p-4">' +
           lvBadgeHtml +
           '<div class="flex items-start justify-between gap-2">' +
@@ -1239,6 +1457,8 @@
       document.getElementById('filter-round').addEventListener('change', function() { populateRounds(); renderPatients(); });
       document.getElementById('filter-search').addEventListener('input', renderPatients);
       document.getElementById('filter-level').addEventListener('change', renderPatients);
+      document.getElementById('btn-sort-nearest').addEventListener('click', toggleSortNearest);
+      document.getElementById('btn-sort-custom').addEventListener('click', toggleCustomSort);
       document.getElementById('btn-sync-all').addEventListener('click', syncAllOffline);
 
       var stBtns = document.querySelectorAll('.st-filter-btn');

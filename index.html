@@ -100,7 +100,15 @@
           </button>
         </div>
 
-        <input type="text" id="filter-search" placeholder="🔍 ค้นหาชื่อผู้ป่วย / หมู่บ้าน / ตำบล..." class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#007a3d]">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <input type="text" id="filter-search" placeholder="🔍 ค้นหาชื่อผู้ป่วย / หมู่บ้าน / ตำบล..." class="sm:col-span-2 rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#007a3d]">
+          <select id="filter-level" class="rounded-xl border border-slate-300 px-3 py-2.5 text-xs bg-white outline-none focus:ring-2 focus:ring-[#007a3d]">
+            <option value="ALL">ทุกระดับความเปราะบาง</option>
+            <option value="ระดับ 1">🔴 ระดับ 1 (เร่งด่วน)</option>
+            <option value="ระดับ 2">🟠 ระดับ 2 (ต่อเนื่อง)</option>
+            <option value="ระดับ 3">🟡 ระดับ 3 (เฝ้าระวัง)</option>
+          </select>
+        </div>
       </div>
 
       <!-- Patient Cards List -->
@@ -421,12 +429,14 @@
       document.getElementById('cnt-wait').textContent = String(cntWait);
       document.getElementById('cnt-done').textContent = String(cntDone);
 
+      var lvFilter = document.getElementById('filter-level') ? document.getElementById('filter-level').value : 'ALL';
       var list = byRound.filter(function(p) {
         var matchSt = STATUS_FILTER === 'ALL' || (STATUS_FILTER === 'เยี่ยมแล้ว' ? p.Visit_Status === 'เยี่ยมแล้ว' : p.Visit_Status !== 'เยี่ยมแล้ว');
+        var matchLv = lvFilter === 'ALL' || String(p.Vulnerability_Level || '').indexOf(lvFilter) !== -1;
         var matchQ = !q || [p.Patient_Name, p.Address_Village, p.Subdistrict, p.Underlying_Disease, p.Patient_Group].some(function(s) {
           return String(s || '').toLowerCase().indexOf(q) !== -1;
         });
-        return matchSt && matchQ;
+        return matchSt && matchLv && matchQ;
       });
 
       if (!list.length) {
@@ -438,8 +448,21 @@
         var isDone = p.Visit_Status === 'เยี่ยมแล้ว';
         var badge = isDone ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-amber-100 text-amber-800 border-amber-200';
         var navBtn = p.Map_Link
-          ? '<a href="' + escapeHtml(p.Map_Link) + '" target="_blank" class="flex-1 text-center bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2.5 px-3 rounded-xl text-xs transition">📍 เปิดแผนที่</a>'
+          ? '<a href="' + escapeHtml(p.Map_Link) + '" target="_blank" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 px-3 rounded-xl text-xs transition">📍 แผนที่</a>'
           : '';
+        var callBtn = p.Phone
+          ? '<a href="tel:' + escapeHtml(String(p.Phone).replace(/[^0-9+]/g, '')) + '" class="bg-emerald-50 hover:bg-emerald-100 text-[#006837] border border-emerald-200 font-medium py-2 px-3 rounded-xl text-xs transition">📞 โทร</a>'
+          : '';
+        var teamNotesHtml = '';
+        if (p.Team_Notes && String(p.Team_Notes).trim()) {
+          var noteLines = String(p.Team_Notes).trim().split(/\r?\n/).map(function(ln) {
+            return '<div class="text-[11px] text-sky-950 bg-white/80 rounded-lg px-2 py-1 border border-sky-100">' + escapeHtml(ln) + '</div>';
+          }).join('');
+          teamNotesHtml = '<div class="mt-2 rounded-xl bg-sky-50 border border-sky-200 p-2.5 space-y-1">' +
+            '<div class="text-[11px] font-semibold text-sky-900">💬 โน้ตทีมสหวิชาชีพก่อนลงเยี่ยม</div>' +
+            noteLines +
+          '</div>';
+        }
         var vitals = [];
         if (p.BP) vitals.push('BP: ' + p.BP);
         if (p.Weight_kg) vitals.push('นน.: ' + p.Weight_kg + ' กก.');
@@ -484,11 +507,14 @@
           '</div>' +
           vitalsHtml +
           noteHtml +
+          teamNotesHtml +
           photosHtml +
-          '<div class="mt-3 pt-2.5 border-t border-slate-100 flex flex-wrap gap-2">' +
+          '<div class="mt-3 pt-2.5 border-t border-slate-100 flex flex-wrap gap-1.5">' +
             navBtn +
-            '<button type="button" onclick="openEditPatientById(\'' + escapeHtml(p.Patient_ID) + '\')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2.5 px-3 rounded-xl text-xs transition cursor-pointer">✏️ แก้ไขข้อมูล</button>' +
-            '<button type="button" onclick="openVisitById(\'' + escapeHtml(p.Patient_ID) + '\')" class="flex-1 moph-btn font-medium py-2.5 px-3 rounded-xl text-xs transition cursor-pointer">📝 บันทึกผลเยี่ยม</button>' +
+            callBtn +
+            '<button type="button" onclick="openTeamNoteById(\'' + escapeHtml(p.Patient_ID) + '\')" class="bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 font-medium py-2 px-3 rounded-xl text-xs transition cursor-pointer">💬 โน้ตสหวิชาชีพ</button>' +
+            '<button type="button" onclick="openEditPatientById(\'' + escapeHtml(p.Patient_ID) + '\')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 px-3 rounded-xl text-xs transition cursor-pointer">✏️ แก้ไข</button>' +
+            '<button type="button" onclick="openVisitById(\'' + escapeHtml(p.Patient_ID) + '\')" class="flex-1 moph-btn font-medium py-2 px-3 rounded-xl text-xs transition cursor-pointer">📝 บันทึกผลเยี่ยม</button>' +
           '</div>' +
         '</div>';
       }).join('');
@@ -546,7 +572,7 @@
         var imgCnt = (item.images && item.images.length) ? item.images.length : 0;
         return '<div class="bg-white rounded-xl border border-amber-200 px-3 py-2 flex items-center justify-between gap-2 text-xs">' +
           '<div class="min-w-0">' +
-            '<div class="font-semibold text-slate-800 truncate">' + (idx + 1) + '. ' + escapeHtml(item.patientName || item.patientId) + ' <span class="text-[11px] font-normal text-[#007a3d]">[' + (item.type === 'edit' ? (item.obj && item.obj.patientId ? 'แก้ไขข้อมูล' : 'คนไข้ใหม่') : 'ผลเยี่ยม') + ']</span></div>' +
+            '<div class="font-semibold text-slate-800 truncate">' + (idx + 1) + '. ' + escapeHtml(item.patientName || item.patientId) + ' <span class="text-[11px] font-normal text-[#007a3d]">[' + (item.type === 'edit' ? (item.obj && item.obj.patientId ? 'แก้ไขข้อมูล' : 'คนไข้ใหม่') : (item.type === 'note' ? 'โน้ตสหวิชาชีพ' : 'ผลเยี่ยม')) + ']</span></div>' +
             '<div class="text-[11px] text-slate-500">🕒 ' + escapeHtml(item.savedAt || '') + (imgCnt ? (' • 📷 ' + imgCnt + ' รูป') : '') + '</div>' +
           '</div>' +
           '<button type="button" onclick="deleteOfflineItem(' + idx + ')" class="text-rose-600 px-2 py-1 rounded-lg border border-rose-200 text-[11px] shrink-0 cursor-pointer">ลบ</button>' +
@@ -625,17 +651,19 @@
           return;
         }
         var item = cur[0];
-        var apiAction = item.type === 'edit' ? 'savePatientAdmin' : 'updatePatientVisit';
+        var apiAction = item.type === 'edit' ? 'savePatientAdmin' : (item.type === 'note' ? 'addTeamNote' : 'updatePatientVisit');
         var apiPayload = item.type === 'edit'
           ? { passcode: ADMIN_PASSCODE, obj: item.obj }
-          : {
-              passcode: ADMIN_PASSCODE,
-              patientId: item.patientId,
-              visitStatus: item.visitStatus,
-              visitNote: item.visitNote,
-              images: item.images || [],
-              visitExtra: item.visitExtra || {}
-            };
+          : (item.type === 'note'
+              ? { passcode: ADMIN_PASSCODE, patientId: item.patientId, discipline: item.discipline, author: item.author, note: item.note }
+              : {
+                  passcode: ADMIN_PASSCODE,
+                  patientId: item.patientId,
+                  visitStatus: item.visitStatus,
+                  visitNote: item.visitNote,
+                  images: item.images || [],
+                  visitExtra: item.visitExtra || {}
+                });
         callApi(apiAction, apiPayload, function(res) {
           var rem = getOfflineQueue();
           rem.shift();
@@ -724,6 +752,113 @@
       } catch (err) {
         Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
       }
+    }
+
+    function queueTeamNoteOffline(p, val) {
+      try {
+        var q = getOfflineQueue();
+        var nowD = new Date();
+        var hhmm = String(nowD.getHours()).padStart(2, '0') + ':' + String(nowD.getMinutes()).padStart(2, '0');
+        var line = '[' + val.discipline + (val.author ? (' - ' + val.author) : '') + ' | ' + hhmm + ']: ' + val.note;
+        q.push({
+          type: 'note',
+          patientId: p.Patient_ID,
+          patientName: p.Patient_Name,
+          discipline: val.discipline,
+          author: val.author,
+          note: val.note,
+          savedAt: nowD.toLocaleString('th-TH')
+        });
+        setOfflineQueue(q);
+        p.Team_Notes = p.Team_Notes ? (p.Team_Notes + '\n' + line) : line;
+        try { localStorage.setItem(CACHE_DATA_KEY, JSON.stringify(ADMIN_DATA)); } catch (e) {}
+        renderPatients();
+        Swal.fire({
+          icon: 'success',
+          title: 'บันทึกโน้ตออฟไลน์แล้ว 💬',
+          text: 'เมื่อกลับมามีเน็ต กดปุ่มซิงค์ขึ้นระบบด้านบนได้เลยครับ',
+          confirmButtonColor: '#007a3d'
+        });
+      } catch (err) {
+        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+      }
+    }
+
+    function openTeamNoteById(patientId) {
+      var p = (ADMIN_DATA && ADMIN_DATA.patients || []).find(function(x) { return x.Patient_ID === patientId; });
+      if (!p) return;
+      var disciplines = [
+        '🩺 แพทย์',
+        '👩‍⚕️ พยาบาล',
+        '💊 เภสัชกร',
+        '🦷 ทันตกรรม',
+        '🦴 กายภาพบำบัด',
+        '🌿 แพทย์แผนไทย',
+        '🏥 รพ.สต. / พื้นที่',
+        '🤝 อสม. / สังคมสงเคราะห์'
+      ];
+      var discOpts = disciplines.map(function(d) {
+        return '<option value="' + escapeHtml(d) + '">' + escapeHtml(d) + '</option>';
+      }).join('');
+      var existingHtml = (p.Team_Notes && String(p.Team_Notes).trim())
+        ? ('<div class="bg-sky-50 border border-sky-200 rounded-lg p-2 text-[11px] text-sky-950 whitespace-pre-line max-h-28 overflow-y-auto mb-2"><b>โน้ตเดิม:</b>\n' + escapeHtml(p.Team_Notes) + '</div>')
+        : '';
+
+      Swal.fire({
+        title: '💬 โน้ตสหวิชาชีพ: ' + p.Patient_Name,
+        width: '95%',
+        html:
+          '<div class="space-y-2 text-left text-xs">' +
+          existingHtml +
+          '<label class="block text-slate-500">สาขาวิชาชีพ *</label>' +
+          '<select id="sw-tn-disc" class="swal2-select !m-0 !w-full !text-xs">' + discOpts + '</select>' +
+          '<label class="block text-slate-500">ชื่อผู้บันทึกโน้ต (ไม่บังคับ)</label>' +
+          '<input id="sw-tn-author" class="swal2-input !m-0 !w-full !text-xs !h-9" placeholder="เช่น นพ.สมชาย / พว.สมหญิง">' +
+          '<label class="block text-slate-500">ข้อความโน้ตถึงทีมก่อนลงเยี่ยม *</label>' +
+          '<textarea id="sw-tn-note" rows="3" class="swal2-textarea !m-0 !w-full !text-xs !h-auto" placeholder="เช่น เตรียมยาความดันไปปรับขนาด, เตรียมอุปกรณ์ทำแผล, เช็คสิทธิ์ผู้พิการ..."></textarea>' +
+          '</div>',
+        showCancelButton: true,
+        confirmButtonText: navigator.onLine ? 'บันทึกโน้ต' : '💾 บันทึกโน้ตออฟไลน์',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#007a3d',
+        preConfirm: function() {
+          var note = document.getElementById('sw-tn-note').value.trim();
+          if (!note) {
+            Swal.showValidationMessage('กรุณากรอกข้อความโน้ต');
+            return false;
+          }
+          return {
+            discipline: document.getElementById('sw-tn-disc').value,
+            author: document.getElementById('sw-tn-author').value.trim(),
+            note: note
+          };
+        }
+      }).then(function(result) {
+        if (result.isConfirmed && result.value) {
+          if (!navigator.onLine) {
+            queueTeamNoteOffline(p, result.value);
+            return;
+          }
+          Swal.fire({ title: 'กำลังบันทึกโน้ต...', allowOutsideClick: false, didOpen: function() { Swal.showLoading(); } });
+          callApi('addTeamNote', {
+            passcode: ADMIN_PASSCODE,
+            patientId: p.Patient_ID,
+            discipline: result.value.discipline,
+            author: result.value.author,
+            note: result.value.note
+          }, function(res) {
+            Swal.fire(res && res.success ? 'สำเร็จ' : 'ผิดพลาด', (res && res.message) || '', res && res.success ? 'success' : 'error');
+            if (res && res.success) {
+              p.Team_Notes = res.teamNotes || p.Team_Notes;
+              try { localStorage.setItem(CACHE_DATA_KEY, JSON.stringify(ADMIN_DATA)); } catch (e) {}
+              renderPatients();
+            }
+          }, function() {
+            Swal.close();
+            queueTeamNoteOffline(p, result.value);
+          });
+        }
+      });
     }
 
     function openEditPatientById(patientId) {
@@ -970,6 +1105,7 @@
       });
       document.getElementById('filter-round').addEventListener('change', function() { populateRounds(); renderPatients(); });
       document.getElementById('filter-search').addEventListener('input', renderPatients);
+      document.getElementById('filter-level').addEventListener('change', renderPatients);
       document.getElementById('btn-sync-all').addEventListener('click', syncAllOffline);
 
       var stBtns = document.querySelectorAll('.st-filter-btn');

@@ -135,14 +135,69 @@
       return m ? ('https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w400') : s;
     }
 
-    function previewPhotoModal(src, origUrl) {
+    function deletePhotoAction(patientId, origUrl, localIdx) {
+      var p = (ADMIN_DATA && ADMIN_DATA.patients || []).find(function(x) { return x.Patient_ID === patientId; });
+      if (!p) return;
+      if (localIdx !== -1 && p._localImages && p._localImages[localIdx] !== undefined) {
+        p._localImages.splice(localIdx, 1);
+        try { localStorage.setItem(CACHE_DATA_KEY, JSON.stringify(ADMIN_DATA)); } catch (e) {}
+        renderPatients();
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'ลบรูปภาพแล้ว', timer: 1800, showConfirmButton: false });
+        return;
+      }
+      var urls = String(p.Photo_URLs || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+      var remaining = urls.filter(function(u) { return u !== origUrl; });
+      if (!navigator.onLine) {
+        var q = getOfflineQueue();
+        q.push({ type: 'delPhoto', patientId: p.Patient_ID, patientName: p.Patient_Name, photoUrl: origUrl, savedAt: new Date().toLocaleString('th-TH') });
+        setOfflineQueue(q);
+        p.Photo_URLs = remaining.join(', ');
+        try { localStorage.setItem(CACHE_DATA_KEY, JSON.stringify(ADMIN_DATA)); } catch (e) {}
+        renderPatients();
+        Swal.fire('ลบรูปออฟไลน์แล้ว 💾', 'จะลบออกจากระบบจริงเมื่อซิงค์ตอนมีเน็ต', 'success');
+        return;
+      }
+      Swal.fire({ title: 'กำลังลบรูปภาพ...', allowOutsideClick: false, didOpen: function() { Swal.showLoading(); } });
+      callApi('deletePatientPhoto', { passcode: ADMIN_PASSCODE, patientId: p.Patient_ID, photoUrl: origUrl }, function(res) {
+        Swal.close();
+        if (res && res.success) {
+          p.Photo_URLs = res.photoUrls !== undefined ? res.photoUrls : remaining.join(', ');
+          try { localStorage.setItem(CACHE_DATA_KEY, JSON.stringify(ADMIN_DATA)); } catch (e) {}
+          renderPatients();
+          Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'ลบรูปภาพเรียบร้อย', timer: 1800, showConfirmButton: false });
+        } else {
+          Swal.fire('ผิดพลาด', (res && res.message) || 'ลบรูปไม่สำเร็จ', 'error');
+        }
+      }, function(err) {
+        Swal.close();
+        Swal.fire('ผิดพลาด', formatErr(err), 'error');
+      });
+    }
+
+    function previewPhotoModal(src, origUrl, patientId, localIdx) {
       Swal.fire({
         imageUrl: src,
         imageAlt: 'ภาพประกอบผู้ป่วย',
         showConfirmButton: true,
         confirmButtonText: 'ปิด',
         confirmButtonColor: '#007a3d',
+        showDenyButton: true,
+        denyButtonText: '🗑️ ลบรูปนี้',
+        denyButtonColor: '#e11d48',
         footer: origUrl && origUrl.indexOf('http') === 0 ? ('<a href="' + escapeHtml(origUrl) + '" target="_blank" style="color:#007a3d;font-size:12px;">เปิดภาพขนาดเต็มใน Google Drive</a>') : ''
+      }).then(function(r) {
+        if (r.isDenied) {
+          Swal.fire({
+            title: 'ยืนยันลบรูปภาพนี้?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'ลบรูป',
+            cancelButtonText: 'ยกเลิก',
+            confirmButtonColor: '#e11d48'
+          }).then(function(c) {
+            if (c.isConfirmed) deletePhotoAction(patientId, origUrl, localIdx);
+          });
+        }
       });
     }
 
@@ -459,7 +514,10 @@
             return '<div class="text-[11px] text-sky-950 bg-white/80 rounded-lg px-2 py-1 border border-sky-100">' + escapeHtml(ln) + '</div>';
           }).join('');
           teamNotesHtml = '<div class="mt-2 rounded-xl bg-sky-50 border border-sky-200 p-2.5 space-y-1">' +
-            '<div class="text-[11px] font-semibold text-sky-900">💬 โน้ตทีมสหวิชาชีพก่อนลงเยี่ยม</div>' +
+            '<div class="flex items-center justify-between gap-2">' +
+              '<div class="text-[11px] font-semibold text-sky-900">💬 โน้ตทีมสหวิชาชีพก่อนลงเยี่ยม</div>' +
+              '<button type="button" onclick="manageTeamNotesById(\'' + escapeHtml(p.Patient_ID) + '\')" class="text-[10px] bg-white text-sky-800 border border-sky-200 px-2 py-0.5 rounded-lg cursor-pointer">✏️ แก้ไข/ลบโน้ต</button>' +
+            '</div>' +
             noteLines +
           '</div>';
         }
@@ -469,23 +527,20 @@
         if (p.Height_cm) vitals.push('สส.: ' + p.Height_cm + ' ซม.');
         var vitalsHtml = vitals.length ? '<div class="text-[11px] text-[#006837] bg-green-50 border border-green-100 rounded-lg px-2.5 py-1.5 mt-2 font-medium">🩺 ' + escapeHtml(vitals.join(' • ')) + '</div>' : '';
         var noteHtml = p.Visit_Note ? '<div class="text-xs text-slate-600 bg-slate-50 rounded-lg px-2.5 py-1.5 mt-1.5">📝 ' + escapeHtml(p.Visit_Note) + '</div>' : '';
-        var photoList = [];
-        if (p.Photo_URLs) {
-          photoList = String(p.Photo_URLs).split(',').map(function(u) { return u.trim(); }).filter(Boolean);
-        }
-        if (p._localImages && p._localImages.length) {
-          photoList = photoList.concat(p._localImages);
-        }
+        var driveUrls = p.Photo_URLs ? String(p.Photo_URLs).split(',').map(function(u) { return u.trim(); }).filter(Boolean) : [];
+        var localImgs = (p._localImages && p._localImages.length) ? p._localImages : [];
+        var totalPics = driveUrls.length + localImgs.length;
         var photosHtml = '';
-        if (photoList.length) {
+        if (totalPics > 0) {
+          var thumbs = driveUrls.map(function(u) {
+            var th = toDriveThumb(u);
+            return '<img src="' + escapeHtml(th) + '" onclick="previewPhotoModal(\'' + escapeHtml(th) + '\', \'' + escapeHtml(u) + '\', \'' + escapeHtml(p.Patient_ID) + '\', -1)" class="w-16 h-16 object-cover rounded-lg border border-green-200 shrink-0 cursor-pointer">';
+          }).concat(localImgs.map(function(u, lIdx) {
+            return '<img src="' + escapeHtml(u) + '" onclick="previewPhotoModal(\'' + escapeHtml(u) + '\', \'\', \'' + escapeHtml(p.Patient_ID) + '\', ' + lIdx + ')" class="w-16 h-16 object-cover rounded-lg border border-amber-300 shrink-0 cursor-pointer">';
+          })).join('');
           photosHtml = '<div class="mt-2">' +
-            '<div class="text-[11px] font-medium text-slate-500 mb-1">📷 ภาพประกอบจากพื้นที่/เยี่ยมบ้าน (' + photoList.length + ' ภาพ — แตะเพื่อดูใหญ่)</div>' +
-            '<div class="flex gap-1.5 overflow-x-auto pb-1">' +
-            photoList.map(function(u) {
-              var th = toDriveThumb(u);
-              return '<img src="' + escapeHtml(th) + '" onclick="previewPhotoModal(\'' + escapeHtml(th) + '\', \'' + escapeHtml(u) + '\')" class="w-16 h-16 object-cover rounded-lg border border-green-200 shrink-0 cursor-pointer">';
-            }).join('') +
-            '</div></div>';
+            '<div class="text-[11px] font-medium text-slate-500 mb-1">📷 ภาพประกอบ (' + totalPics + ' ภาพ — แตะเพื่อดูใหญ่ / ลบ)</div>' +
+            '<div class="flex gap-1.5 overflow-x-auto pb-1">' + thumbs + '</div></div>';
         }
 
         var lvMeta = getVulnLevelMeta(p.Vulnerability_Level);
@@ -572,7 +627,7 @@
         var imgCnt = (item.images && item.images.length) ? item.images.length : 0;
         return '<div class="bg-white rounded-xl border border-amber-200 px-3 py-2 flex items-center justify-between gap-2 text-xs">' +
           '<div class="min-w-0">' +
-            '<div class="font-semibold text-slate-800 truncate">' + (idx + 1) + '. ' + escapeHtml(item.patientName || item.patientId) + ' <span class="text-[11px] font-normal text-[#007a3d]">[' + (item.type === 'edit' ? (item.obj && item.obj.patientId ? 'แก้ไขข้อมูล' : 'คนไข้ใหม่') : (item.type === 'note' ? 'โน้ตสหวิชาชีพ' : 'ผลเยี่ยม')) + ']</span></div>' +
+            '<div class="font-semibold text-slate-800 truncate">' + (idx + 1) + '. ' + escapeHtml(item.patientName || item.patientId) + ' <span class="text-[11px] font-normal text-[#007a3d]">[' + (item.type === 'edit' ? (item.obj && item.obj.patientId ? 'แก้ไขข้อมูล' : 'คนไข้ใหม่') : (item.type === 'note' ? 'โน้ตสหวิชาชีพ' : (item.type === 'setNotes' ? 'แก้ไขโน้ต' : (item.type === 'delPhoto' ? 'ลบรูป' : 'ผลเยี่ยม')))) + ']</span></div>' +
             '<div class="text-[11px] text-slate-500">🕒 ' + escapeHtml(item.savedAt || '') + (imgCnt ? (' • 📷 ' + imgCnt + ' รูป') : '') + '</div>' +
           '</div>' +
           '<button type="button" onclick="deleteOfflineItem(' + idx + ')" class="text-rose-600 px-2 py-1 rounded-lg border border-rose-200 text-[11px] shrink-0 cursor-pointer">ลบ</button>' +
@@ -651,19 +706,26 @@
           return;
         }
         var item = cur[0];
-        var apiAction = item.type === 'edit' ? 'savePatientAdmin' : (item.type === 'note' ? 'addTeamNote' : 'updatePatientVisit');
+        var apiAction = item.type === 'edit' ? 'savePatientAdmin'
+          : (item.type === 'note' ? 'addTeamNote'
+          : (item.type === 'setNotes' ? 'updateTeamNotes'
+          : (item.type === 'delPhoto' ? 'deletePatientPhoto' : 'updatePatientVisit')));
         var apiPayload = item.type === 'edit'
           ? { passcode: ADMIN_PASSCODE, obj: item.obj }
           : (item.type === 'note'
               ? { passcode: ADMIN_PASSCODE, patientId: item.patientId, discipline: item.discipline, author: item.author, note: item.note }
-              : {
-                  passcode: ADMIN_PASSCODE,
-                  patientId: item.patientId,
-                  visitStatus: item.visitStatus,
-                  visitNote: item.visitNote,
-                  images: item.images || [],
-                  visitExtra: item.visitExtra || {}
-                });
+              : (item.type === 'setNotes'
+                  ? { passcode: ADMIN_PASSCODE, patientId: item.patientId, teamNotes: item.teamNotes }
+                  : (item.type === 'delPhoto'
+                      ? { passcode: ADMIN_PASSCODE, patientId: item.patientId, photoUrl: item.photoUrl }
+                      : {
+                          passcode: ADMIN_PASSCODE,
+                          patientId: item.patientId,
+                          visitStatus: item.visitStatus,
+                          visitNote: item.visitNote,
+                          images: item.images || [],
+                          visitExtra: item.visitExtra || {}
+                        })));
         callApi(apiAction, apiPayload, function(res) {
           var rem = getOfflineQueue();
           rem.shift();
@@ -782,6 +844,77 @@
       } catch (err) {
         Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
       }
+    }
+
+    function manageTeamNotesById(patientId) {
+      var p = (ADMIN_DATA && ADMIN_DATA.patients || []).find(function(x) { return x.Patient_ID === patientId; });
+      if (!p) return;
+      var lines = String(p.Team_Notes || '').split(/\r?\n/).map(function(s) { return s.trim(); }).filter(Boolean);
+      if (!lines.length) {
+        openTeamNoteById(patientId);
+        return;
+      }
+      var rowsHtml = lines.map(function(ln, idx) {
+        return '<div class="flex items-center gap-1.5 tn-edit-row" data-idx="' + idx + '">' +
+          '<input type="text" class="tn-edit-inp flex-1 rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs" value="' + escapeHtml(ln) + '">' +
+          '<button type="button" class="tn-del-btn bg-rose-50 text-rose-600 border border-rose-200 px-2.5 py-1.5 rounded-lg text-xs cursor-pointer">ลบ</button>' +
+        '</div>';
+      }).join('');
+
+      Swal.fire({
+        title: '✏️ แก้ไข / ลบโน้ตสหวิชาชีพ',
+        width: '95%',
+        html: '<div id="tn-edit-list" class="space-y-2 text-left max-h-64 overflow-y-auto">' + rowsHtml + '</div>',
+        showCancelButton: true,
+        confirmButtonText: navigator.onLine ? 'บันทึกการแก้ไข' : '💾 บันทึกออฟไลน์',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#007a3d',
+        didOpen: function() {
+          var delBtns = document.querySelectorAll('.tn-del-btn');
+          for (var i = 0; i < delBtns.length; i++) {
+            (function(b) {
+              b.addEventListener('click', function() {
+                var row = b.closest('.tn-edit-row');
+                if (row) row.remove();
+              });
+            })(delBtns[i]);
+          }
+        },
+        preConfirm: function() {
+          var inps = document.querySelectorAll('.tn-edit-inp');
+          var arr = [];
+          for (var i = 0; i < inps.length; i++) {
+            var v = inps[i].value.trim();
+            if (v) arr.push(v);
+          }
+          return arr.join('\n');
+        }
+      }).then(function(result) {
+        if (result.isConfirmed) {
+          var newNotes = result.value || '';
+          if (!navigator.onLine) {
+            var q = getOfflineQueue();
+            q.push({ type: 'setNotes', patientId: p.Patient_ID, patientName: p.Patient_Name, teamNotes: newNotes, savedAt: new Date().toLocaleString('th-TH') });
+            setOfflineQueue(q);
+            p.Team_Notes = newNotes;
+            try { localStorage.setItem(CACHE_DATA_KEY, JSON.stringify(ADMIN_DATA)); } catch (e) {}
+            renderPatients();
+            Swal.fire('บันทึกออฟไลน์แล้ว 💾', 'จะซิงค์ขึ้นระบบเมื่อมีเน็ต', 'success');
+            return;
+          }
+          Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: function() { Swal.showLoading(); } });
+          callApi('updateTeamNotes', { passcode: ADMIN_PASSCODE, patientId: p.Patient_ID, teamNotes: newNotes }, function(res) {
+            Swal.fire(res && res.success ? 'สำเร็จ' : 'ผิดพลาด', (res && res.message) || '', res && res.success ? 'success' : 'error');
+            if (res && res.success) {
+              p.Team_Notes = res.teamNotes;
+              try { localStorage.setItem(CACHE_DATA_KEY, JSON.stringify(ADMIN_DATA)); } catch (e) {}
+              renderPatients();
+            }
+          }, function(err) {
+            Swal.fire('ผิดพลาด', formatErr(err), 'error');
+          });
+        }
+      });
     }
 
     function openTeamNoteById(patientId) {

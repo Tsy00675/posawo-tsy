@@ -588,6 +588,53 @@
       );
     }
 
+    function evalClinicalAlert(bpStr, wStr, hStr) {
+      var msgs = [];
+      var level = 'ok';
+      var w = parseFloat(String(wStr || '').replace(',', '.'));
+      var h = parseFloat(String(hStr || '').replace(',', '.'));
+      var bmiText = '';
+      if (w > 0 && h > 40) {
+        var hm = h / 100;
+        var bmi = w / (hm * hm);
+        var bStr = bmi.toFixed(1);
+        if (bmi < 18.5) {
+          bmiText = 'BMI ' + bStr + ' (ผอม/เสี่ยงทุพโภชนาการ)';
+          msgs.push('⚠️ ' + bmiText);
+          if (level === 'ok') level = 'warn';
+        } else if (bmi < 23) {
+          bmiText = 'BMI ' + bStr + ' (ปกติ)';
+          msgs.push('✅ ' + bmiText);
+        } else if (bmi < 25) {
+          bmiText = 'BMI ' + bStr + ' (ท้วม)';
+          msgs.push('🟠 ' + bmiText);
+          if (level === 'ok') level = 'warn';
+        } else {
+          bmiText = 'BMI ' + bStr + ' (อ้วน)';
+          msgs.push('⚠️ ' + bmiText);
+          if (level === 'ok') level = 'warn';
+        }
+      }
+      var mBp = String(bpStr || '').match(/(\d{2,3})\s*\/\s*(\d{2,3})/);
+      if (mBp) {
+        var sys = parseInt(mBp[1], 10);
+        var dia = parseInt(mBp[2], 10);
+        if (sys >= 180 || dia >= 120) {
+          msgs.push('🚨 ความดันวิกฤต (' + sys + '/' + dia + ' mmHg)');
+          level = 'danger';
+        } else if (sys >= 140 || dia >= 90) {
+          msgs.push('⚠️ ความดันสูง (' + sys + '/' + dia + ' mmHg)');
+          if (level !== 'danger') level = 'danger';
+        } else if (sys < 90 || dia < 60) {
+          msgs.push('⚠️ ความดันต่ำ (' + sys + '/' + dia + ' mmHg)');
+          if (level === 'ok') level = 'warn';
+        } else {
+          msgs.push('✅ ความดันปกติ (' + sys + '/' + dia + ')');
+        }
+      }
+      return { msgs: msgs, level: level, bmiText: bmiText };
+    }
+
     function escapeHtml(str) {
       return String(str || '')
         .replace(/&/g, '&amp;')
@@ -832,7 +879,10 @@
         if (p.BP) vitals.push('BP: ' + p.BP);
         if (p.Weight_kg) vitals.push('นน.: ' + p.Weight_kg + ' กก.');
         if (p.Height_cm) vitals.push('สส.: ' + p.Height_cm + ' ซม.');
-        var vitalsHtml = vitals.length ? '<div class="text-[11px] text-[#006837] bg-green-50 border border-green-100 rounded-lg px-2.5 py-1.5 mt-2 font-medium">🩺 ' + escapeHtml(vitals.join(' • ')) + '</div>' : '';
+        var clin = evalClinicalAlert(p.BP, p.Weight_kg, p.Height_cm);
+        if (clin.bmiText) vitals.push(clin.bmiText);
+        var vitalsCls = clin.level === 'danger' ? 'text-rose-900 bg-rose-50 border-rose-200' : (clin.level === 'warn' ? 'text-amber-900 bg-amber-50 border-amber-200' : 'text-[#006837] bg-green-50 border-green-100');
+        var vitalsHtml = vitals.length ? '<div class="text-[11px] ' + vitalsCls + ' border rounded-lg px-2.5 py-1.5 mt-2 font-medium">🩺 ' + escapeHtml(vitals.join(' • ')) + (clin.level === 'danger' ? ' (เฝ้าระวังความดันสูง)' : '') + '</div>' : '';
         var adlHtml = (p.ADL_Score !== undefined && String(p.ADL_Score).trim() !== '')
           ? '<div class="text-[11px] text-indigo-900 bg-indigo-50 border border-indigo-200 rounded-lg px-2.5 py-1.5 mt-1.5 font-medium">📋 Barthel ADL: <b>' + escapeHtml(p.ADL_Score) + '/20</b> (' + escapeHtml(p.ADL_Group || '') + ')</div>'
           : '';
@@ -1495,6 +1545,7 @@
             '<div><label class="block text-slate-500 mb-0.5">น้ำหนัก (กก.)</label><input id="sw-v-weight" type="text" class="swal2-input !m-0 !w-full !text-xs !h-9" placeholder="55" value="' + escapeHtml(p.Weight_kg || '') + '"></div>' +
             '<div><label class="block text-slate-500 mb-0.5">ส่วนสูง (ซม.)</label><input id="sw-v-height" type="text" class="swal2-input !m-0 !w-full !text-xs !h-9" placeholder="160" value="' + escapeHtml(p.Height_cm || '') + '"></div>' +
           '</div>' +
+          '<div id="sw-v-clin-alert" class="hidden rounded-lg border px-2.5 py-1.5 text-[11px] font-medium"></div>' +
           '<details class="rounded-xl border border-indigo-200 bg-indigo-50/40 p-2.5">' +
             '<summary class="font-semibold text-indigo-900 cursor-pointer flex items-center justify-between"><span>📋 แบบประเมิน Barthel ADL (10 ข้อ)' + (p.ADL_Score ? (' — เดิม ' + escapeHtml(p.ADL_Score) + '/20') : '') + '</span><span id="sw-adl-badge" class="text-[11px] px-2 py-0.5 rounded-full bg-white border border-indigo-200">ยังไม่ได้ประเมิน</span></summary>' +
             '<div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">' + adlHtml + '</div>' +
@@ -1527,6 +1578,30 @@
               cnt.textContent = n > 10 ? 'เลือก ' + n + ' ภาพ (บันทึกเฉพาะ 10 ภาพแรก)' : (n > 0 ? 'เลือกแล้ว ' + n + ' / 10 ภาพ' : '');
             });
           }
+
+          // Live BMI & BP Alert
+          function updateClinBox() {
+            var box = document.getElementById('sw-v-clin-alert');
+            if (!box) return;
+            var resC = evalClinicalAlert(
+              document.getElementById('sw-v-bp').value,
+              document.getElementById('sw-v-weight').value,
+              document.getElementById('sw-v-height').value
+            );
+            if (!resC.msgs.length) {
+              box.classList.add('hidden');
+              return;
+            }
+            box.classList.remove('hidden');
+            box.className = 'rounded-lg border px-2.5 py-1.5 text-[11px] font-medium ' +
+              (resC.level === 'danger' ? 'bg-rose-50 border-rose-300 text-rose-800' : (resC.level === 'warn' ? 'bg-amber-50 border-amber-300 text-amber-800' : 'bg-emerald-50 border-emerald-200 text-emerald-800'));
+            box.textContent = resC.msgs.join('  |  ');
+          }
+          ['sw-v-bp', 'sw-v-weight', 'sw-v-height'].forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) el.addEventListener('input', updateClinBox);
+          });
+          updateClinBox();
 
           // ADL Live Calculator
           var adlSels = document.querySelectorAll('.sw-adl-sel');

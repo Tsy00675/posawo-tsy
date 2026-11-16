@@ -319,9 +319,10 @@
           '</div>' +
           vitalsHtml +
           noteHtml +
-          '<div class="mt-3 pt-2.5 border-t border-slate-100 flex gap-2">' +
+          '<div class="mt-3 pt-2.5 border-t border-slate-100 flex flex-wrap gap-2">' +
             navBtn +
-            '<button type="button" onclick="openVisitById(\'' + escapeHtml(p.Patient_ID) + '\')" class="flex-1 moph-btn font-medium py-2.5 px-3 rounded-xl text-xs transition cursor-pointer">📝 บันทึกผลเยี่ยม / แนบรูป</button>' +
+            '<button type="button" onclick="openEditPatientById(\'' + escapeHtml(p.Patient_ID) + '\')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2.5 px-3 rounded-xl text-xs transition cursor-pointer">✏️ แก้ไขข้อมูล</button>' +
+            '<button type="button" onclick="openVisitById(\'' + escapeHtml(p.Patient_ID) + '\')" class="flex-1 moph-btn font-medium py-2.5 px-3 rounded-xl text-xs transition cursor-pointer">📝 บันทึกผลเยี่ยม</button>' +
           '</div>' +
         '</div>';
       }).join('');
@@ -379,7 +380,7 @@
         var imgCnt = (item.images && item.images.length) ? item.images.length : 0;
         return '<div class="bg-white rounded-xl border border-amber-200 px-3 py-2 flex items-center justify-between gap-2 text-xs">' +
           '<div class="min-w-0">' +
-            '<div class="font-semibold text-slate-800 truncate">' + (idx + 1) + '. ' + escapeHtml(item.patientName || item.patientId) + '</div>' +
+            '<div class="font-semibold text-slate-800 truncate">' + (idx + 1) + '. ' + escapeHtml(item.patientName || item.patientId) + ' <span class="text-[11px] font-normal text-[#007a3d]">[' + (item.type === 'edit' ? 'แก้ไขข้อมูล' : 'ผลเยี่ยม') + ']</span></div>' +
             '<div class="text-[11px] text-slate-500">🕒 ' + escapeHtml(item.savedAt || '') + (imgCnt ? (' • 📷 ' + imgCnt + ' รูป') : '') + '</div>' +
           '</div>' +
           '<button type="button" onclick="deleteOfflineItem(' + idx + ')" class="text-rose-600 px-2 py-1 rounded-lg border border-rose-200 text-[11px] shrink-0 cursor-pointer">ลบ</button>' +
@@ -458,14 +459,18 @@
           return;
         }
         var item = cur[0];
-        callApi('updatePatientVisit', {
-          passcode: ADMIN_PASSCODE,
-          patientId: item.patientId,
-          visitStatus: item.visitStatus,
-          visitNote: item.visitNote,
-          images: item.images || [],
-          visitExtra: item.visitExtra || {}
-        }, function(res) {
+        var apiAction = item.type === 'edit' ? 'savePatientAdmin' : 'updatePatientVisit';
+        var apiPayload = item.type === 'edit'
+          ? { passcode: ADMIN_PASSCODE, obj: item.obj }
+          : {
+              passcode: ADMIN_PASSCODE,
+              patientId: item.patientId,
+              visitStatus: item.visitStatus,
+              visitNote: item.visitNote,
+              images: item.images || [],
+              visitExtra: item.visitExtra || {}
+            };
+        callApi(apiAction, apiPayload, function(res) {
           var rem = getOfflineQueue();
           rem.shift();
           setOfflineQueue(rem);
@@ -480,6 +485,144 @@
         });
       }
       nextItem();
+    }
+
+    function queueEditOffline(p, obj) {
+      try {
+        var q = getOfflineQueue();
+        var exIdx = q.findIndex(function(x) { return x.type === 'edit' && x.patientId === p.Patient_ID; });
+        var entry = {
+          type: 'edit',
+          patientId: p.Patient_ID,
+          patientName: obj.patientName,
+          obj: obj,
+          savedAt: new Date().toLocaleString('th-TH')
+        };
+        if (exIdx !== -1) q[exIdx] = entry; else q.push(entry);
+        setOfflineQueue(q);
+        p.Round_ID = obj.roundId;
+        p.Patient_Name = obj.patientName;
+        p.Age = obj.age;
+        p.Phone = obj.phone;
+        p.Address_Village = obj.addressVillage;
+        p.Subdistrict = obj.subdistrict;
+        p.GPS_Coords = obj.gpsCoords;
+        p.Map_Link = obj.mapLink;
+        p.Patient_Group = obj.patientGroup;
+        p.Underlying_Disease = obj.underlyingDisease;
+        p.Living_Caregiver = obj.livingCaregiver;
+        p.Assistance_Needs = obj.assistanceNeeds;
+        try { localStorage.setItem(CACHE_DATA_KEY, JSON.stringify(ADMIN_DATA)); } catch (e) {}
+        renderPatients();
+        Swal.fire({
+          icon: 'success',
+          title: 'บันทึกการแก้ไขออฟไลน์แล้ว 💾',
+          text: 'เมื่อกลับมามีเน็ต กดปุ่มซิงค์ขึ้นระบบด้านบนได้เลยครับ',
+          confirmButtonColor: '#007a3d'
+        });
+      } catch (err) {
+        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+      }
+    }
+
+    function openEditPatientById(patientId) {
+      var p = (ADMIN_DATA && ADMIN_DATA.patients || []).find(function(x) { return x.Patient_ID === patientId; });
+      if (!p) return;
+      var roundOpts = (ADMIN_DATA.rounds || []).map(function(r) {
+        var sel = p.Round_ID === r.Round_ID ? ' selected' : '';
+        return '<option value="' + escapeHtml(r.Round_ID) + '"' + sel + '>รอบ ' + escapeHtml(r.Round_No) + ' (' + escapeHtml(r.Month_Label) + ')</option>';
+      }).join('');
+      var subs = ['แม่ต้าน', 'แม่อุสุ', 'แม่หละ', 'แม่สอง', 'ท่าสองยาง', 'แม่วะหลวง'];
+      var subOpts = subs.map(function(s) {
+        return '<option value="' + s + '"' + (p.Subdistrict === s ? ' selected' : '') + '>ต.' + s + '</option>';
+      }).join('');
+      var grps = ['ผู้ป่วยติดเตียง / ติดบ้าน', 'ผู้พิการทางการเคลื่อนไหวหรือทางร่างกาย', 'ผู้พิการทางการเห็น', 'ผู้สูงอายุยากไร้ / ผู้ยากไร้', 'ผู้ป่วยในพระบรมราชานุเคราะห์', 'ผู้ป่วยโรคเรื้อรัง (NCD)', 'อื่นๆ'];
+      var grpOpts = grps.map(function(g) {
+        return '<option value="' + g + '"' + (p.Patient_Group === g ? ' selected' : '') + '>' + g + '</option>';
+      }).join('');
+
+      Swal.fire({
+        title: 'แก้ไขข้อมูลเบื้องต้น',
+        width: '95%',
+        html:
+          '<div class="space-y-2 text-left text-xs">' +
+          '<label class="block text-slate-500">รอบออกหน่วย</label><select id="sw-ep-round" class="swal2-select !m-0 !w-full !text-xs">' + roundOpts + '</select>' +
+          '<label class="block text-slate-500">ชื่อ-นามสกุลผู้ป่วย</label><input id="sw-ep-name" class="swal2-input !m-0 !w-full !text-xs !h-9" value="' + escapeHtml(p.Patient_Name) + '">' +
+          '<div class="grid grid-cols-2 gap-2">' +
+            '<div><label class="block text-slate-500">อายุ (ปี)</label><input id="sw-ep-age" type="number" class="swal2-input !m-0 !w-full !text-xs !h-9" value="' + escapeHtml(p.Age) + '"></div>' +
+            '<div><label class="block text-slate-500">เบอร์โทร</label><input id="sw-ep-phone" class="swal2-input !m-0 !w-full !text-xs !h-9" value="' + escapeHtml(p.Phone || '') + '"></div>' +
+          '</div>' +
+          '<div class="grid grid-cols-2 gap-2">' +
+            '<div><label class="block text-slate-500">ตำบล</label><select id="sw-ep-sub" class="swal2-select !m-0 !w-full !text-xs">' + subOpts + '</select></div>' +
+            '<div><label class="block text-slate-500">ที่อยู่/หมู่บ้าน</label><input id="sw-ep-addr" class="swal2-input !m-0 !w-full !text-xs !h-9" value="' + escapeHtml(p.Address_Village) + '"></div>' +
+          '</div>' +
+          '<div class="flex items-center justify-between"><label class="block text-slate-500">พิกัด GPS</label><button type="button" id="sw-ep-gps-btn" class="text-[11px] bg-green-100 text-[#006837] px-2.5 py-1 rounded-lg font-medium cursor-pointer">📍 ดึงพิกัดใหม่</button></div>' +
+          '<input id="sw-ep-gps" class="swal2-input !m-0 !w-full !text-xs !h-9" placeholder="ละติจูด, ลองจิจูด" value="' + escapeHtml(p.GPS_Coords || '') + '">' +
+          '<label class="block text-slate-500">กลุ่มปัญหา</label><select id="sw-ep-grp" class="swal2-select !m-0 !w-full !text-xs">' + grpOpts + '</select>' +
+          '<label class="block text-slate-500">โรค / การวินิจฉัย</label><input id="sw-ep-dis" class="swal2-input !m-0 !w-full !text-xs !h-9" value="' + escapeHtml(p.Underlying_Disease) + '">' +
+          '<label class="block text-slate-500">สภาพความเป็นอยู่ / ผู้ดูแล</label><input id="sw-ep-care" class="swal2-input !m-0 !w-full !text-xs !h-9" value="' + escapeHtml(p.Living_Caregiver || '') + '">' +
+          '<label class="block text-slate-500">ความต้องการช่วยเหลือ</label><textarea id="sw-ep-need" rows="2" class="swal2-textarea !m-0 !w-full !text-xs !h-auto">' + escapeHtml(p.Assistance_Needs || '') + '</textarea>' +
+          '</div>',
+        showCancelButton: true,
+        confirmButtonText: navigator.onLine ? 'บันทึกข้อมูล' : '💾 บันทึกแก้ไขออฟไลน์',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#007a3d',
+        didOpen: function() {
+          var gBtn = document.getElementById('sw-ep-gps-btn');
+          if (gBtn) {
+            gBtn.addEventListener('click', function() {
+              if (!navigator.geolocation) return;
+              gBtn.textContent = 'กำลังดึงพิกัด...';
+              navigator.geolocation.getCurrentPosition(function(pos) {
+                gBtn.textContent = '📍 ดึงพิกัดใหม่';
+                document.getElementById('sw-ep-gps').value = pos.coords.latitude.toFixed(6) + ', ' + pos.coords.longitude.toFixed(6);
+              }, function() {
+                gBtn.textContent = '📍 ดึงพิกัดใหม่';
+              }, { enableHighAccuracy: true, timeout: 10000 });
+            });
+          }
+        },
+        preConfirm: function() {
+          var gps = document.getElementById('sw-ep-gps').value.trim();
+          var mapLink = gps ? ('https://maps.google.com/?q=' + gps.replace(/\s+/g, '')) : (p.Map_Link || '');
+          return {
+            patientId: p.Patient_ID,
+            roundId: document.getElementById('sw-ep-round').value,
+            patientName: document.getElementById('sw-ep-name').value.trim(),
+            age: document.getElementById('sw-ep-age').value,
+            cid: p.CID || '',
+            phone: document.getElementById('sw-ep-phone').value.trim(),
+            subdistrict: document.getElementById('sw-ep-sub').value,
+            addressVillage: document.getElementById('sw-ep-addr').value.trim(),
+            gpsCoords: gps,
+            mapLink: mapLink,
+            patientGroup: document.getElementById('sw-ep-grp').value,
+            underlyingDisease: document.getElementById('sw-ep-dis').value.trim(),
+            hospitalHistory: p.Hospital_History || '',
+            livingCaregiver: document.getElementById('sw-ep-care').value.trim(),
+            assistanceNeeds: document.getElementById('sw-ep-need').value.trim(),
+            reporterName: p.Reporter_Name || '',
+            reporterAgency: p.Reporter_Agency || '',
+            visitStatus: p.Visit_Status || 'รอเยี่ยมบ้าน',
+            visitNote: p.Visit_Note || ''
+          };
+        }
+      }).then(function(result) {
+        if (result.isConfirmed && result.value) {
+          if (!navigator.onLine) {
+            queueEditOffline(p, result.value);
+            return;
+          }
+          Swal.fire({ title: 'กำลังบันทึกข้อมูล...', allowOutsideClick: false, didOpen: function() { Swal.showLoading(); } });
+          callApi('savePatientAdmin', { passcode: ADMIN_PASSCODE, obj: result.value }, function(res) {
+            Swal.fire(res && res.success ? 'สำเร็จ' : 'ผิดพลาด', (res && res.message) || '', res && res.success ? 'success' : 'error');
+            if (res && res.success) refreshData();
+          }, function() {
+            Swal.close();
+            queueEditOffline(p, result.value);
+          });
+        }
+      });
     }
 
     function openVisitById(patientId) {

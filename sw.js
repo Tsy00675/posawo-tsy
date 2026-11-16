@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pmmv-tsy-pwa-v3';
+const CACHE_NAME = 'pmmv-tsy-pwa-v4';
 const CORE_ASSETS = [
   './',
   './index.html',
@@ -44,6 +44,19 @@ self.addEventListener('activate', function(event) {
   self.clients.claim();
 });
 
+function fetchWithTimeout(req, ms) {
+  return new Promise(function(resolve, reject) {
+    var timer = setTimeout(function() { reject(new Error('timeout')); }, ms);
+    fetch(req).then(function(res) {
+      clearTimeout(timer);
+      resolve(res);
+    }).catch(function(err) {
+      clearTimeout(timer);
+      reject(err);
+    });
+  });
+}
+
 self.addEventListener('fetch', function(event) {
   var req = event.request;
   var url = req.url || '';
@@ -52,17 +65,19 @@ self.addEventListener('fetch', function(event) {
     return;
   }
 
-  // Network-First for HTML pages so updates appear immediately when online
+  // Network-First with 2.5s timeout so weak/offline iPhone signal opens cached app fast
   if (req.mode === 'navigate' || url.endsWith('/index.html') || url.endsWith('/posawo-tsy/')) {
     event.respondWith(
-      fetch(req).then(function(netRes) {
+      fetchWithTimeout(req, 2500).then(function(netRes) {
         if (netRes && netRes.status === 200) {
           var copy = netRes.clone();
           caches.open(CACHE_NAME).then(function(c) { c.put(req, copy); });
         }
         return netRes;
       }).catch(function() {
-        return caches.match(req).then(function(c) { return c || caches.match('./index.html'); });
+        return caches.match(req, { ignoreSearch: true }).then(function(c) {
+          return c || caches.match('./index.html') || caches.match('./');
+        });
       })
     );
     return;
@@ -70,7 +85,7 @@ self.addEventListener('fetch', function(event) {
 
   // Cache-First for static assets & CDNs
   event.respondWith(
-    caches.match(req).then(function(cached) {
+    caches.match(req, { ignoreSearch: true }).then(function(cached) {
       if (cached) return cached;
       return fetch(req).then(function(netRes) {
         if (netRes && (netRes.status === 200 || netRes.type === 'opaque')) {

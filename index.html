@@ -1554,19 +1554,67 @@
       });
     }
 
+    var DEFAULT_DISCIPLINES = [
+      '🩺 แพทย์',
+      '👩‍⚕️ พยาบาล',
+      '💊 เภสัชกร',
+      '🦷 ทันตกรรม',
+      '🦴 กายภาพบำบัด',
+      '🌿 แพทย์แผนไทย',
+      '🏥 รพ.สต. / พื้นที่',
+      '🤝 อสม. / สังคมสงเคราะห์'
+    ];
+
+    function getTeamDisciplines() {
+      var raw = (ADMIN_DATA && ADMIN_DATA.settings && ADMIN_DATA.settings.teamDisciplines) ? ADMIN_DATA.settings.teamDisciplines : '';
+      var arr = String(raw).split(/[\r\n,]+/).map(function(s) { return s.trim(); }).filter(Boolean);
+      return arr.length ? arr : DEFAULT_DISCIPLINES;
+    }
+
+    function openManageDisciplinesModal(afterSaveCb) {
+      var curText = getTeamDisciplines().join('\n');
+      Swal.fire({
+        title: '⚙️ ตั้งค่าสาขาวิชาชีพ',
+        width: '95%',
+        html:
+          '<div class="text-left text-xs space-y-2">' +
+            '<p class="text-slate-600">เพิ่มหรือแก้ไขรายชื่อสาขาวิชาชีพสำหรับโน้ตสหวิชาชีพ (บรรทัดละ 1 รายการ)</p>' +
+            '<textarea id="sw-disc-list" rows="7" class="swal2-textarea !m-0 !w-full !text-xs !h-auto">' + escapeHtml(curText) + '</textarea>' +
+          '</div>',
+        showCancelButton: true,
+        confirmButtonText: 'บันทึกสาขาวิชาชีพ',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#007a3d',
+        preConfirm: function() {
+          return document.getElementById('sw-disc-list').value.trim();
+        }
+      }).then(function(r) {
+        if (!r.isConfirmed) return;
+        ADMIN_DATA.settings = ADMIN_DATA.settings || {};
+        ADMIN_DATA.settings.teamDisciplines = r.value || DEFAULT_DISCIPLINES.join('\n');
+        try { localStorage.setItem(CACHE_DATA_KEY, JSON.stringify(ADMIN_DATA)); } catch (e) {}
+        if (navigator.onLine) {
+          Swal.fire({ title: 'กำลังบันทึกตั้งค่า...', allowOutsideClick: false, didOpen: function() { Swal.showLoading(); } });
+          callApi('saveSettings', { passcode: ADMIN_PASSCODE, newSettings: { teamDisciplines: ADMIN_DATA.settings.teamDisciplines } }, function(res) {
+            Swal.close();
+            if (res && res.success) {
+              Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'บันทึกสาขาวิชาชีพแล้ว', timer: 1800, showConfirmButton: false });
+            }
+            if (afterSaveCb) afterSaveCb();
+          }, function() {
+            Swal.close();
+            if (afterSaveCb) afterSaveCb();
+          });
+        } else {
+          if (afterSaveCb) afterSaveCb();
+        }
+      });
+    }
+
     function openTeamNoteById(patientId) {
       var p = (ADMIN_DATA && ADMIN_DATA.patients || []).find(function(x) { return x.Patient_ID === patientId; });
       if (!p) return;
-      var disciplines = [
-        '🩺 แพทย์',
-        '👩‍⚕️ พยาบาล',
-        '💊 เภสัชกร',
-        '🦷 ทันตกรรม',
-        '🦴 กายภาพบำบัด',
-        '🌿 แพทย์แผนไทย',
-        '🏥 รพ.สต. / พื้นที่',
-        '🤝 อสม. / สังคมสงเคราะห์'
-      ];
+      var disciplines = getTeamDisciplines();
       var discOpts = disciplines.map(function(d) {
         return '<option value="' + escapeHtml(d) + '">' + escapeHtml(d) + '</option>';
       }).join('');
@@ -1580,13 +1628,17 @@
         html:
           '<div class="space-y-2 text-left text-xs">' +
           existingHtml +
-          '<label class="block text-slate-500">สาขาวิชาชีพ *</label>' +
+          '<div class="flex items-center justify-between"><label class="block text-slate-500">สาขาวิชาชีพ *</label><button type="button" id="sw-tn-cfg-disc" class="text-[11px] text-[#007a3d] hover:underline font-medium cursor-pointer">⚙️ เพิ่ม/ตั้งค่าสาขา</button></div>' +
           '<select id="sw-tn-disc" class="swal2-select !m-0 !w-full !text-xs">' + discOpts + '</select>' +
           '<label class="block text-slate-500">ชื่อผู้บันทึกโน้ต (ไม่บังคับ)</label>' +
           '<input id="sw-tn-author" class="swal2-input !m-0 !w-full !text-xs !h-9" placeholder="เช่น นพ.สมชาย / พว.สมหญิง">' +
           '<label class="block text-slate-500">ข้อความโน้ตถึงทีมก่อนลงเยี่ยม *</label>' +
           '<textarea id="sw-tn-note" rows="3" class="swal2-textarea !m-0 !w-full !text-xs !h-auto" placeholder="เช่น เตรียมยาความดันไปปรับขนาด, เตรียมอุปกรณ์ทำแผล, เช็คสิทธิ์ผู้พิการ..."></textarea>' +
           '</div>',
+        didOpen: function() {
+          var cfgD = document.getElementById('sw-tn-cfg-disc');
+          if (cfgD) cfgD.addEventListener('click', function() { openManageDisciplinesModal(function() { openTeamNoteById(patientId); }); });
+        },
         showCancelButton: true,
         confirmButtonText: navigator.onLine ? 'บันทึกโน้ต' : '💾 บันทึกโน้ตออฟไลน์',
         cancelButtonText: 'ยกเลิก',
@@ -1897,7 +1949,7 @@
             '<div class="space-y-2 mt-2 text-xs">' +
               '<div><label class="block text-slate-600 mb-1">ทีมสหวิชาชีพที่เข้าเยี่ยมเคสนี้ (เลือกได้หลายสาขา)</label>' +
               '<div class="grid grid-cols-2 gap-1">' +
-              ['🩺 แพทย์', '👩‍⚕️ พยาบาล', '💊 เภสัชกร', '🦷 ทันตกรรม', '🦴 กายภาพฯ', '🌿 แพทย์แผนไทย', '🏥 รพ.สต.', '🤝 อสม.'].map(function(tm) {
+              getTeamDisciplines().map(function(tm) {
                 var chk = String(p.Visit_Team || '').indexOf(tm) !== -1 ? ' checked' : '';
                 return '<label class="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-2 py-1 cursor-pointer"><input type="checkbox" class="sw-vt-chk accent-[#007a3d]" value="' + escapeHtml(tm) + '"' + chk + '><span>' + escapeHtml(tm) + '</span></label>';
               }).join('') +

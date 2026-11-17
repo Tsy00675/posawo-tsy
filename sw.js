@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pmmv-tsy-pwa-v24';
+const CACHE_NAME = 'pmmv-tsy-pwa-v25';
 const CORE_ASSETS = [
   './',
   './index.html',

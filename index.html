@@ -1169,6 +1169,7 @@
         var detailHtml = isExpanded
           ? ('<div class="mt-2.5 text-xs text-slate-700 space-y-1">' +
               '<div><b>กลุ่ม/โรค:</b> ' + escapeHtml(p.Patient_Group) + (p.Underlying_Disease ? (' — ' + escapeHtml(p.Underlying_Disease)) : '') + '</div>' +
+              (p.Current_Symptoms ? ('<div><b>สภาพ/อาการปัจจุบัน:</b> ' + escapeHtml(p.Current_Symptoms) + '</div>') : '') +
               '<div><b>ผู้ดูแล:</b> ' + escapeHtml(p.Living_Caregiver || '-') + '</div>' +
               '<div><b>ความช่วยเหลือ:</b> ' + escapeHtml(p.Assistance_Needs || '-') + '</div>' +
             '</div>' +
@@ -1408,6 +1409,7 @@
           existingP.Patient_Group = obj.patientGroup;
           existingP.Vulnerability_Level = obj.vulnerabilityLevel;
           existingP.Underlying_Disease = obj.underlyingDisease;
+          existingP.Current_Symptoms = obj.currentSymptoms;
           existingP.Hospital_History = obj.hospitalHistory;
           existingP.Living_Caregiver = obj.livingCaregiver;
           existingP.Assistance_Needs = obj.assistanceNeeds;
@@ -1430,6 +1432,7 @@
             Patient_Group: obj.patientGroup,
             Vulnerability_Level: obj.vulnerabilityLevel,
             Underlying_Disease: obj.underlyingDisease,
+            Current_Symptoms: obj.currentSymptoms,
             Hospital_History: obj.hospitalHistory,
             Living_Caregiver: obj.livingCaregiver,
             Assistance_Needs: obj.assistanceNeeds,
@@ -1725,6 +1728,7 @@
           '<label class="block text-slate-500 font-medium">กลุ่มเป้าหมาย / ประเภทความเปราะบาง (เลือกได้มากกว่า 1 ข้อ) *</label>' + grpCheckHtml +
           '<label class="block text-slate-500 font-medium mt-1">ระดับความเปราะบาง *</label>' + lvlCardsHtml +
           '<label class="block text-slate-500">ป่วยเป็นโรค / การวินิจฉัย *</label><input id="sw-ep-dis" class="swal2-input !m-0 !w-full !text-xs !h-9" placeholder="เช่น เบาหวาน, ความดัน, อัมพฤกษ์" value="' + escapeHtml(p ? p.Underlying_Disease : '') + '">' +
+          '<label class="block text-slate-500">สภาพปัจจุบัน / อาการปัจจุบัน</label><textarea id="sw-ep-symp" rows="2" class="swal2-textarea !m-0 !w-full !text-xs !h-auto" placeholder="เช่น นอนติดเตียง มีแผลกดทับ กินอาหารได้น้อย...">' + escapeHtml(p ? (p.Current_Symptoms || '') : '') + '</textarea>' +
           '<label class="block text-slate-500">ประวัติการมา รพ.ท่าสองยาง</label><input id="sw-ep-hosp" class="swal2-input !m-0 !w-full !text-xs !h-9" value="' + escapeHtml(curHosp) + '">' +
           '<label class="block text-slate-500">สภาพความเป็นอยู่ / ผู้ดูแล *</label><input id="sw-ep-care" class="swal2-input !m-0 !w-full !text-xs !h-9" placeholder="เช่น อาศัยอยู่กับบุตร" value="' + escapeHtml(p ? (p.Living_Caregiver || '') : '') + '">' +
           '<label class="block text-slate-500">ความต้องการช่วยเหลือ *</label><textarea id="sw-ep-need" rows="2" class="swal2-textarea !m-0 !w-full !text-xs !h-auto" placeholder="1. สนับสนุนถุงยังชีพ&#10;2. เยี่ยมบ้าน...">' + escapeHtml(p ? (p.Assistance_Needs || '') : '') + '</textarea>' +
@@ -1788,6 +1792,7 @@
               patientGroup: vulnSel.patientGroup,
               vulnerabilityLevel: vulnSel.vulnerabilityLevel,
               underlyingDisease: document.getElementById('sw-ep-dis').value.trim(),
+              currentSymptoms: document.getElementById('sw-ep-symp').value.trim(),
               hospitalHistory: document.getElementById('sw-ep-hosp').value.trim(),
               livingCaregiver: document.getElementById('sw-ep-care').value.trim(),
               assistanceNeeds: document.getElementById('sw-ep-need').value.trim(),
@@ -1869,6 +1874,7 @@
             '<div class="rounded-xl border border-slate-200 bg-white p-2.5 space-y-1">' +
               '<div><b>ประเภทความเปราะบาง:</b> ' + escapeHtml(p.Patient_Group || '-') + '</div>' +
               '<div><b>โรค/การวินิจฉัย:</b> ' + escapeHtml(p.Underlying_Disease || '-') + '</div>' +
+              '<div><b>สภาพปัจจุบัน/อาการ:</b> ' + escapeHtml(p.Current_Symptoms || '-') + '</div>' +
               '<div><b>ประวัติ รพ.ท่าสองยาง:</b> ' + escapeHtml(p.Hospital_History || '-') + '</div>' +
               '<div><b>สภาพความเป็นอยู่/ผู้ดูแล:</b> ' + escapeHtml(p.Living_Caregiver || '-') + '</div>' +
               '<div><b>ความต้องการช่วยเหลือ:</b> ' + escapeHtml(p.Assistance_Needs || '-') + '</div>' +
